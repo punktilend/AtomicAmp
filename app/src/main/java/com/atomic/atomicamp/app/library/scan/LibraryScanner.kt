@@ -24,6 +24,11 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
 
     private companion object {
         val AUDIO_EXTENSIONS = setOf("mp3", "m4a", "aac", "flac", "wav", "ogg", "opus", "oga", "m4b")
+
+        /** Filenames conventionally used for album art sitting beside the tracks. */
+        val COVER_BASE_NAMES = setOf("cover", "folder", "album", "front", "albumart")
+        val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp")
+
         const val BATCH_SIZE = 50
 
         /** SQLite allows 999 bound variables per statement; stay comfortably under it. */
@@ -79,6 +84,14 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
             }
         }
 
+        // Plenty of libraries keep art as cover.jpg beside the tracks rather than embedded in
+        // every file, so find it once per directory and use it when a file has no embedded art.
+        val folderArtUri = children.firstOrNull { (_, name, mime) ->
+            mime != Document.MIME_TYPE_DIR &&
+                name.substringBeforeLast('.').lowercase() in COVER_BASE_NAMES &&
+                name.substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS
+        }?.let { (docId, _, _) -> DocumentsContract.buildDocumentUriUsingTree(treeUri, docId) }
+
         for ((docId, name, mime) in children) {
             if (mime == Document.MIME_TYPE_DIR) {
                 val childRelativeDir = if (relativeDir.isEmpty()) name else "$relativeDir/$name"
@@ -86,7 +99,7 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
             } else if (name.substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS) {
                 val fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
                 seenUris += fileUri.toString()
-                extractTrack(fileUri, treeUri, relativeDir, name)?.let { batch += it }
+                extractTrack(fileUri, treeUri, relativeDir, name, folderArtUri)?.let { batch += it }
                 if (batch.size >= BATCH_SIZE) {
                     trackDao.upsert(batch.toList())
                     batch.clear()
@@ -96,7 +109,13 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
     }
 
     /** Broad catch is intentional: these are arbitrary user files, and one bad file must not abort the scan. */
-    private fun extractTrack(fileUri: Uri, treeUri: Uri, relativeDir: String, fileName: String): Track? {
+    private fun extractTrack(
+        fileUri: Uri,
+        treeUri: Uri,
+        relativeDir: String,
+        fileName: String,
+        folderArtUri: Uri?,
+    ): Track? {
         val retriever = MediaMetadataRetriever()
         return try {
             retriever.setDataSource(context, fileUri)
@@ -115,7 +134,7 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
                 ?.substringBefore('/')?.toIntOrNull() ?: 0
             val durationMs = tag(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
 
-            val albumArtPath = cacheAlbumArt(retriever, albumArtist, album)
+            val albumArtPath = cacheAlbumArt(retriever, albumArtist, album, folderArtUri)
 
             Track(
                 uri = fileUri.toString(),
@@ -141,8 +160,16 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         }
     }
 
-    /** Album art is cached once per artist+album, not once per track. */
-    private fun cacheAlbumArt(retriever: MediaMetadataRetriever, albumArtist: String, album: String): String? {
+    /**
+     * Album art is cached once per artist+album, not once per track. Prefers art embedded in the
+     * file and falls back to a cover image sitting in the same folder.
+     */
+    private fun cacheAlbumArt(
+        retriever: MediaMetadataRetriever,
+        albumArtist: String,
+        album: String,
+        folderArtUri: Uri?,
+    ): String? {
         val key = MessageDigest.getInstance("MD5")
             .digest("$albumArtist|$album".toByteArray())
             .joinToString("") { "%02x".format(it) }
@@ -150,10 +177,19 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         val artFile = File(artDir, "$key.jpg")
         if (artFile.exists()) return artFile.absolutePath
 
-        val art = retriever.embeddedPicture ?: return null
         return try {
-            FileOutputStream(artFile).use { it.write(art) }
-            artFile.absolutePath
+            val embedded = retriever.embeddedPicture
+            if (embedded != null) {
+                FileOutputStream(artFile).use { it.write(embedded) }
+                artFile.absolutePath
+            } else if (folderArtUri != null) {
+                context.contentResolver.openInputStream(folderArtUri)?.use { input ->
+                    FileOutputStream(artFile).use { output -> input.copyTo(output) }
+                }
+                artFile.takeIf { it.exists() }?.absolutePath
+            } else {
+                null
+            }
         } catch (e: Exception) {
             null
         }

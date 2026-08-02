@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
@@ -68,8 +69,21 @@ class PlaybackService : MediaSessionService() {
         // Restore before the sink is built so the first buffer already has the user's curve.
         settingsStore.loadInto(equalizer)
 
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            // DEFAULT leaves this UNKNOWN. Car audio policy uses content type to decide routing
+            // and how to duck under navigation prompts, so declare music explicitly.
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .build()
+
         player = ExoPlayer.Builder(this, EngineRenderersFactory(this, equalizer))
-            .setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus= */ true)
+            .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
+            // Pause when the audio route drops (Bluetooth disconnect, headset unplug) instead of
+            // continuing out loud on the unit's speakers.
+            .setHandleAudioBecomingNoisy(true)
+            // A head unit blanks its screen while driving; without a wake lock the CPU can sleep
+            // mid-track and stall playback.
+            .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
 
         playbackStateStore = PlaybackStateStore(this)
