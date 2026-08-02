@@ -29,4 +29,9 @@ data class Track(
     val durationMs: Long,
     val albumArtPath: String?,
     val dateAddedMs: Long,
+    /**
+     * True when at least one of title/artist/album/track came from the file path rather than a
+     * tag. Surfaced in the UI so a guess is never presented as fact.
+     */
+    val metadataInferred: Boolean = false,
 )

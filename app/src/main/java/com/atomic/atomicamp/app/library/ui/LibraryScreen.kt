@@ -334,12 +334,25 @@ private fun TrackRow(track: Track, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                "${track.artist} • ${track.album}",
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${track.artist} • ${track.album}",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                if (track.metadataInferred) {
+                    // These details were guessed from the file path, not read from a tag. Say so
+                    // rather than letting a guess pass as fact.
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "guessed",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
+            }
         }
     }
 }

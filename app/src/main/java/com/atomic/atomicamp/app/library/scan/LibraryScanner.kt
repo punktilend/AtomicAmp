@@ -121,15 +121,35 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
             retriever.setDataSource(context, fileUri)
             fun tag(key: Int): String? = retriever.extractMetadata(key)?.trim()?.takeIf { it.isNotEmpty() }
 
-            val title = tag(MediaMetadataRetriever.METADATA_KEY_TITLE) ?: fileName.substringBeforeLast('.')
-            val artist = tag(MediaMetadataRetriever.METADATA_KEY_ARTIST) ?: "Unknown Artist"
-            val album = tag(MediaMetadataRetriever.METADATA_KEY_ALBUM) ?: "Unknown Album"
+            val taggedTitle = tag(MediaMetadataRetriever.METADATA_KEY_TITLE)
+            val taggedArtist = tag(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+            val taggedAlbum = tag(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+            val taggedTrackNumber = tag(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
+                ?.substringBefore('/')?.toIntOrNull()
+
+            // Only consulted where a tag is missing -- a real tag always wins over a guess.
+            val guess = if (taggedTitle == null || taggedArtist == null ||
+                taggedAlbum == null || taggedTrackNumber == null
+            ) {
+                PathMetadataInference.infer(relativeDir, fileName)
+            } else {
+                InferredMetadata()
+            }
+
+            val title = taggedTitle ?: guess.title ?: fileName.substringBeforeLast('.')
+            val artist = taggedArtist ?: guess.artist ?: "Unknown Artist"
+            val album = taggedAlbum ?: guess.album ?: "Unknown Album"
+            val trackNumber = taggedTrackNumber ?: guess.trackNumber ?: 0
+
+            val metadataInferred = (taggedTitle == null && guess.title != null) ||
+                (taggedArtist == null && guess.artist != null) ||
+                (taggedAlbum == null && guess.album != null) ||
+                (taggedTrackNumber == null && guess.trackNumber != null)
+
             val albumArtist = tag(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?: artist
             val genre = tag(MediaMetadataRetriever.METADATA_KEY_GENRE) ?: ""
             val composer = tag(MediaMetadataRetriever.METADATA_KEY_COMPOSER) ?: ""
             val year = tag(MediaMetadataRetriever.METADATA_KEY_YEAR)?.take(4)?.toIntOrNull() ?: 0
-            val trackNumber = tag(MediaMetadataRetriever.METADATA_KEY_CD_TRACK_NUMBER)
-                ?.substringBefore('/')?.toIntOrNull() ?: 0
             val discNumber = tag(MediaMetadataRetriever.METADATA_KEY_DISC_NUMBER)
                 ?.substringBefore('/')?.toIntOrNull() ?: 0
             val durationMs = tag(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
@@ -152,6 +172,7 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
                 durationMs = durationMs,
                 albumArtPath = albumArtPath,
                 dateAddedMs = System.currentTimeMillis(),
+                metadataInferred = metadataInferred,
             )
         } catch (e: Exception) {
             null
