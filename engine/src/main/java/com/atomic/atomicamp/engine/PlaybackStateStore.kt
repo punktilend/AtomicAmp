@@ -27,6 +27,8 @@ internal class PlaybackStateStore(context: Context) {
         const val KEY_QUEUE = "queue_json"
         const val KEY_INDEX = "current_index"
         const val KEY_POSITION_MS = "position_ms"
+        const val KEY_SHUFFLE = "shuffle_enabled"
+        const val KEY_REPEAT_MODE = "repeat_mode"
 
         const val FIELD_URI = "uri"
         const val FIELD_TITLE = "title"
@@ -38,6 +40,12 @@ internal class PlaybackStateStore(context: Context) {
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun save(player: Player) {
+        // Shuffle/repeat are preferences, not queue contents -- keep them even with an empty queue.
+        prefs.edit()
+            .putBoolean(KEY_SHUFFLE, player.shuffleModeEnabled)
+            .putInt(KEY_REPEAT_MODE, player.repeatMode)
+            .apply()
+
         val count = player.mediaItemCount
         if (count == 0) {
             clear()
@@ -74,6 +82,10 @@ internal class PlaybackStateStore(context: Context) {
      * (a revoked SAF grant, or a USB stick that isn't plugged in this time).
      */
     fun restoreInto(player: Player): Boolean {
+        // Applied before the early return: these persist even when no queue was saved.
+        player.shuffleModeEnabled = prefs.getBoolean(KEY_SHUFFLE, false)
+        player.repeatMode = prefs.getInt(KEY_REPEAT_MODE, Player.REPEAT_MODE_OFF)
+
         val json = prefs.getString(KEY_QUEUE, null) ?: return false
 
         val items = mutableListOf<MediaItem>()

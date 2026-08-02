@@ -28,6 +28,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -47,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import com.atomic.atomicamp.app.ui.VerticalSlider
 import com.atomic.atomicamp.engine.dsp.EqPreset
@@ -122,9 +124,13 @@ fun PlayerScreen(viewModel: PlayerViewModel, onNavigateToLibrary: () -> Unit = {
                         Spacer(Modifier.height(8.dp))
                         TransportControls(
                             isPlaying = uiState.isPlaying,
+                            shuffleEnabled = uiState.shuffleEnabled,
+                            repeatMode = uiState.repeatMode,
                             onPlayPause = viewModel::togglePlayPause,
                             onNext = viewModel::skipNext,
                             onPrevious = viewModel::skipPrevious,
+                            onToggleShuffle = viewModel::toggleShuffle,
+                            onCycleRepeat = viewModel::cycleRepeatMode,
                         )
                     }
 
@@ -151,9 +157,13 @@ fun PlayerScreen(viewModel: PlayerViewModel, onNavigateToLibrary: () -> Unit = {
                 Spacer(Modifier.height(8.dp))
                 TransportControls(
                     isPlaying = uiState.isPlaying,
+                    shuffleEnabled = uiState.shuffleEnabled,
+                    repeatMode = uiState.repeatMode,
                     onPlayPause = viewModel::togglePlayPause,
                     onNext = viewModel::skipNext,
                     onPrevious = viewModel::skipPrevious,
+                    onToggleShuffle = viewModel::toggleShuffle,
+                    onCycleRepeat = viewModel::cycleRepeatMode,
                 )
                 Spacer(Modifier.height(16.dp))
                 EqualizerPanel(
@@ -247,21 +257,64 @@ private fun SeekRow(uiState: PlayerUiState, onSeek: (Long) -> Unit) {
 @Composable
 private fun TransportControls(
     isPlaying: Boolean,
+    shuffleEnabled: Boolean,
+    repeatMode: Int,
     onPlayPause: () -> Unit,
     onNext: () -> Unit,
     onPrevious: () -> Unit,
+    onToggleShuffle: () -> Unit,
+    onCycleRepeat: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-    ) {
-        val buttonModifier = Modifier.weight(1f).height(TRANSPORT_BUTTON_HEIGHT)
-        val padding = ButtonDefaults.ContentPadding
-        Button(onClick = onPrevious, modifier = buttonModifier, contentPadding = padding) { Text("Prev") }
-        Button(onClick = onPlayPause, modifier = buttonModifier, contentPadding = padding) {
-            Text(if (isPlaying) "Pause" else "Play")
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        ) {
+            val buttonModifier = Modifier.weight(1f).height(TRANSPORT_BUTTON_HEIGHT)
+            val padding = ButtonDefaults.ContentPadding
+            Button(onClick = onPrevious, modifier = buttonModifier, contentPadding = padding) { Text("Prev") }
+            Button(onClick = onPlayPause, modifier = buttonModifier, contentPadding = padding) {
+                Text(if (isPlaying) "Pause" else "Play")
+            }
+            Button(onClick = onNext, modifier = buttonModifier, contentPadding = padding) { Text("Next") }
         }
-        Button(onClick = onNext, modifier = buttonModifier, contentPadding = padding) { Text("Next") }
+
+        Spacer(Modifier.height(8.dp))
+
+        // Modes read as toggles, so filled = on and outlined = off, rather than relying on an icon
+        // glance the driver has to interpret.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        ) {
+            val modeModifier = Modifier.weight(1f).height(TRANSPORT_BUTTON_HEIGHT)
+            ModeButton(
+                label = if (shuffleEnabled) "Shuffle On" else "Shuffle Off",
+                active = shuffleEnabled,
+                onClick = onToggleShuffle,
+                modifier = modeModifier,
+            )
+            ModeButton(
+                label = when (repeatMode) {
+                    Player.REPEAT_MODE_ALL -> "Repeat All"
+                    Player.REPEAT_MODE_ONE -> "Repeat One"
+                    else -> "Repeat Off"
+                },
+                active = repeatMode != Player.REPEAT_MODE_OFF,
+                onClick = onCycleRepeat,
+                modifier = modeModifier,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModeButton(label: String, active: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val padding = ButtonDefaults.ContentPadding
+    if (active) {
+        Button(onClick = onClick, modifier = modifier, contentPadding = padding) { Text(label) }
+    } else {
+        OutlinedButton(onClick = onClick, modifier = modifier, contentPadding = padding) { Text(label) }
     }
 }
 

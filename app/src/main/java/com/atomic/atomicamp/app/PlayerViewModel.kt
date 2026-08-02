@@ -38,6 +38,8 @@ data class PlayerUiState(
     val isPlaying: Boolean = false,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
+    val shuffleEnabled: Boolean = false,
+    val repeatMode: Int = Player.REPEAT_MODE_OFF,
     val eqEnabled: Boolean = true,
     val preampDb: Float = 0f,
     val bandGainsDb: FloatArray = FloatArray(GraphicEqualizerAudioProcessor.BAND_COUNT),
@@ -54,6 +56,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
+        }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            _uiState.value = _uiState.value.copy(shuffleEnabled = shuffleModeEnabled)
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            _uiState.value = _uiState.value.copy(repeatMode = repeatMode)
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -74,6 +84,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 controller?.addListener(playerListener)
                 syncEqStateFromEngine()
                 syncQueueFromEngine()
+                syncModesFromEngine()
                 startPositionUpdates()
             },
             MoreExecutors.directExecutor(),
@@ -107,6 +118,15 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             currentIndex = c.currentMediaItemIndex,
             durationMs = c.duration.coerceAtLeast(0),
             positionMs = c.currentPosition.coerceAtLeast(0),
+        )
+    }
+
+    /** Shuffle/repeat live on the player and persist independently of the queue. */
+    private fun syncModesFromEngine() {
+        val c = controller ?: return
+        _uiState.value = _uiState.value.copy(
+            shuffleEnabled = c.shuffleModeEnabled,
+            repeatMode = c.repeatMode,
         )
     }
 
@@ -224,6 +244,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun skipPrevious() {
         controller?.seekToPreviousMediaItem()
+    }
+
+    fun toggleShuffle() {
+        val c = controller ?: return
+        c.shuffleModeEnabled = !c.shuffleModeEnabled
+    }
+
+    /** Cycles off -> all -> one, the order every other player uses. */
+    fun cycleRepeatMode() {
+        val c = controller ?: return
+        c.repeatMode = when (c.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
     }
 
     fun setBandGain(bandIndex: Int, gainDb: Float) {

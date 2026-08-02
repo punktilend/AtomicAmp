@@ -99,6 +99,14 @@ class PlaybackService : MediaSessionService() {
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
             playbackStateStore.save(player)
         }
+
+        override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+            playbackStateStore.save(player)
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            playbackStateStore.save(player)
+        }
     }
 
     /** Current equalizer state, as sent back to controllers. */
