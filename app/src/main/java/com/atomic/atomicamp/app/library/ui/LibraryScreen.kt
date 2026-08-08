@@ -72,6 +72,7 @@ fun LibraryScreen(
 ) {
     val tab by libraryViewModel.tab.collectAsState()
     val isScanning by libraryViewModel.isScanning.collectAsState()
+    val scanProgress by libraryViewModel.scanProgress.collectAsState()
 
     val addFolderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -99,6 +100,19 @@ fun LibraryScreen(
             if (isScanning) {
                 Spacer(Modifier.height(8.dp))
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                // Total file count isn't known until the walk finishes, so report what has been
+                // done rather than a percentage that would have to lie.
+                val progress = scanProgress
+                Text(
+                    text = when {
+                        progress == null -> "Scanning…"
+                        progress.filesPerSecond == null -> "Scanning… ${progress.filesScanned} tracks"
+                        else -> "Scanning… ${progress.filesScanned} tracks " +
+                            "(%.0f/sec)".format(progress.filesPerSecond)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
 
             Spacer(Modifier.height(8.dp))

@@ -35,15 +35,52 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         const val SQLITE_VARIABLE_LIMIT = 500
     }
 
-    suspend fun scan(treeUri: Uri) {
+    /**
+     * Scans [treeUri], reporting a running count to [onProgress] as files are processed.
+     *
+     * Reading tags means opening every audio file, so a large library on slow removable storage
+     * takes real time. Reporting progress is the difference between "working" and "hung" from the
+     * driver's seat.
+     */
+    suspend fun scan(treeUri: Uri, onProgress: (ScanProgress) -> Unit = {}) {
+        val startedAtMs = System.currentTimeMillis()
         val rootDocId = DocumentsContract.getTreeDocumentId(treeUri)
         val batch = mutableListOf<Track>()
         val seenUris = mutableSetOf<String>()
-        walk(treeUri, rootDocId, relativeDir = "", batch, seenUris)
+        val counter = ScanCounter(startedAtMs, onProgress)
+
+        walk(treeUri, rootDocId, relativeDir = "", batch, seenUris, counter)
         if (batch.isNotEmpty()) {
             trackDao.upsert(batch.toList())
         }
         pruneMissing(treeUri.toString(), seenUris)
+        counter.emit(force = true)
+    }
+
+    /** Throttles progress emissions so a fast scan doesn't spend its time recomposing the UI. */
+    private class ScanCounter(
+        private val startedAtMs: Long,
+        private val onProgress: (ScanProgress) -> Unit,
+    ) {
+        var filesScanned = 0
+            private set
+        private var lastEmitMs = 0L
+
+        fun increment() {
+            filesScanned++
+            emit(force = false)
+        }
+
+        fun emit(force: Boolean) {
+            val now = System.currentTimeMillis()
+            if (!force && now - lastEmitMs < PROGRESS_INTERVAL_MS) return
+            lastEmitMs = now
+            onProgress(ScanProgress(filesScanned, now - startedAtMs))
+        }
+
+        private companion object {
+            const val PROGRESS_INTERVAL_MS = 250L
+        }
     }
 
     /**
@@ -66,6 +103,7 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         relativeDir: String,
         batch: MutableList<Track>,
         seenUris: MutableSet<String>,
+        counter: ScanCounter,
     ) {
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
         val projection = arrayOf(
@@ -95,11 +133,12 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         for ((docId, name, mime) in children) {
             if (mime == Document.MIME_TYPE_DIR) {
                 val childRelativeDir = if (relativeDir.isEmpty()) name else "$relativeDir/$name"
-                walk(treeUri, docId, childRelativeDir, batch, seenUris)
+                walk(treeUri, docId, childRelativeDir, batch, seenUris, counter)
             } else if (name.substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS) {
                 val fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
                 seenUris += fileUri.toString()
                 extractTrack(fileUri, treeUri, relativeDir, name, folderArtUri)?.let { batch += it }
+                counter.increment()
                 if (batch.size >= BATCH_SIZE) {
                     trackDao.upsert(batch.toList())
                     batch.clear()

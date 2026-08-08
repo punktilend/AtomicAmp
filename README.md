@@ -69,7 +69,13 @@ real folder structure.
   - `library/scan/LibraryScanner`: walks a granted SAF tree via `DocumentsContract`, reads tags
     and embedded album art with `MediaMetadataRetriever`, upserts in chunks so the UI fills in
     progressively as a scan runs. A rescan also prunes rows whose files have disappeared —
-    otherwise reorganizing a USB stick leaves ghost entries that fail on play.
+    otherwise reorganizing a USB stick leaves ghost entries that fail on play. Progress is
+    reported as a running count rather than a percentage, since the total isn't known until the
+    walk finishes.
+
+    Measured throughput: **300 tracks in 6.6s — ~45 files/sec, 22ms per file** (emulator, local
+    storage). Tag reading means opening every file, so that extrapolates to roughly 20s for 1,000
+    tracks and ~2 minutes for 5,000. Expect real USB storage on the head unit to be slower.
   - `library/ui/LibraryScreen`: Songs / Albums / Artists / Folders tabs; the Folders tab mirrors
     the real filesystem structure the way Poweramp's does.
   - `PlayerScreen`: the Now Playing destination — album art, transport controls, and EQ wired live

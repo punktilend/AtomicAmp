@@ -9,6 +9,7 @@ import com.atomic.atomicamp.app.library.data.LibraryDatabase
 import com.atomic.atomicamp.app.library.data.MusicFolder
 import com.atomic.atomicamp.app.library.data.Track
 import com.atomic.atomicamp.app.library.scan.LibraryScanner
+import com.atomic.atomicamp.app.library.scan.ScanProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -51,7 +52,11 @@ class LibraryRepository(context: Context) {
         return children.toList()
     }
 
-    suspend fun addFolder(treeUri: Uri, displayName: String) = withContext(Dispatchers.IO) {
+    suspend fun addFolder(
+        treeUri: Uri,
+        displayName: String,
+        onProgress: (ScanProgress) -> Unit = {},
+    ) = withContext(Dispatchers.IO) {
         appContext.contentResolver.takePersistableUriPermission(
             treeUri,
             Intent.FLAG_GRANT_READ_URI_PERMISSION,
@@ -59,12 +64,19 @@ class LibraryRepository(context: Context) {
         folderDao.insert(
             MusicFolder(uri = treeUri.toString(), displayName = displayName, dateAddedMs = System.currentTimeMillis()),
         )
-        scanner.scan(treeUri)
+        scanner.scan(treeUri, onProgress)
     }
 
-    suspend fun rescanAll() = withContext(Dispatchers.IO) {
+    suspend fun rescanAll(onProgress: (ScanProgress) -> Unit = {}) = withContext(Dispatchers.IO) {
+        // Counts continue across folders so the user sees one total, not a per-folder reset.
+        var alreadyScanned = 0
         for (folder in folderDao.allOnce()) {
-            scanner.scan(Uri.parse(folder.uri))
+            var lastInFolder = 0
+            scanner.scan(Uri.parse(folder.uri)) { progress ->
+                lastInFolder = progress.filesScanned
+                onProgress(progress.copy(filesScanned = alreadyScanned + progress.filesScanned))
+            }
+            alreadyScanned += lastInFolder
         }
     }
 

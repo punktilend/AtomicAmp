@@ -9,6 +9,7 @@ import com.atomic.atomicamp.app.library.data.AlbumSummary
 import com.atomic.atomicamp.app.library.data.ArtistSummary
 import com.atomic.atomicamp.app.library.data.MusicFolder
 import com.atomic.atomicamp.app.library.data.Track
+import com.atomic.atomicamp.app.library.scan.ScanProgress
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -33,6 +34,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
+
+    private val _scanProgress = MutableStateFlow<ScanProgress?>(null)
+    val scanProgress: StateFlow<ScanProgress?> = _scanProgress.asStateFlow()
 
     val songs: StateFlow<List<Track>> =
         repository.allTracks.stateIn(viewModelScope, whileUsed, emptyList())
@@ -103,9 +107,10 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun addFolder(uri: Uri) {
         viewModelScope.launch {
             _isScanning.value = true
+            _scanProgress.value = null
             try {
                 val displayName = uri.lastPathSegment?.substringAfterLast(':') ?: "Music folder"
-                repository.addFolder(uri, displayName)
+                repository.addFolder(uri, displayName) { _scanProgress.value = it }
             } finally {
                 _isScanning.value = false
             }
@@ -115,8 +120,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun rescanAll() {
         viewModelScope.launch {
             _isScanning.value = true
+            _scanProgress.value = null
             try {
-                repository.rescanAll()
+                repository.rescanAll { _scanProgress.value = it }
             } finally {
                 _isScanning.value = false
             }
