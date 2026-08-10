@@ -5,6 +5,7 @@ import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
+import com.atomic.atomicamp.engine.dsp.FadeAudioProcessor
 import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
 
 /**
@@ -15,6 +16,7 @@ import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
 internal class EngineRenderersFactory(
     context: Context,
     private val equalizer: GraphicEqualizerAudioProcessor,
+    private val fade: FadeAudioProcessor,
 ) : DefaultRenderersFactory(context) {
 
     override fun buildAudioSink(
@@ -25,7 +27,9 @@ internal class EngineRenderersFactory(
         return DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(enableFloatOutput)
             .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-            .setAudioProcessors(arrayOf<AudioProcessor>(equalizer))
+            // Order matters: the fade attenuates the equalized signal. Fading before the filters
+            // would feed a ramped signal into them and colour the result as the gain moved.
+            .setAudioProcessors(arrayOf<AudioProcessor>(equalizer, fade))
             .build()
     }
 }

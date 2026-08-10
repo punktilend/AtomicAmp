@@ -15,6 +15,7 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import com.atomic.atomicamp.engine.dsp.EqPresets
+import com.atomic.atomicamp.engine.dsp.FadeAudioProcessor
 import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
@@ -42,6 +43,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     val equalizer = GraphicEqualizerAudioProcessor()
+    private val fade = FadeAudioProcessor()
 
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
@@ -76,7 +78,7 @@ class PlaybackService : MediaSessionService() {
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
-        player = ExoPlayer.Builder(this, EngineRenderersFactory(this, equalizer))
+        player = ExoPlayer.Builder(this, EngineRenderersFactory(this, equalizer, fade))
             .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
             // Pause when the audio route drops (Bluetooth disconnect, headset unplug) instead of
             // continuing out loud on the unit's speakers.
@@ -90,7 +92,9 @@ class PlaybackService : MediaSessionService() {
         playbackStateStore.restoreInto(player)
         player.addListener(PlaybackPersistenceListener())
 
-        mediaSession = MediaSession.Builder(this, player)
+        // The session wraps the fading player, so notification and steering-wheel controls fade
+        // too -- not just this app's own transport buttons.
+        mediaSession = MediaSession.Builder(this, FadingPlayer(player, fade, mainHandler))
             .setCallback(EqualizerSessionCallback())
             .build()
     }

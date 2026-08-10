@@ -54,7 +54,17 @@ real folder structure.
   - `dsp/GraphicEqualizerAudioProcessor`: a runtime-adjustable 10-band graphic EQ + preamp,
     implemented as a Media3 `AudioProcessor` that runs on float PCM inside ExoPlayer's real audio
     sink.
-  - `EngineRenderersFactory`: wires the equalizer directly into ExoPlayer's `DefaultAudioSink`.
+  - `EngineRenderersFactory`: wires the equalizer and fade directly into ExoPlayer's
+    `DefaultAudioSink`, in that order — fading before the filters would colour the result as the
+    gain moved.
+  - `dsp/FadeAudioProcessor` + `FadingPlayer`: a short volume envelope on pause, resume, and seek,
+    so playback never starts or stops on a waveform discontinuity (audible as a click through a
+    car amplifier). Pausing is deferred until the fade has actually reached the speakers, since
+    stopping immediately would defeat it. The session wraps `FadingPlayer`, so notification and
+    steering-wheel controls fade too, not just this app's buttons.
+
+    This is fade *at* transport changes, not yet overlapping crossfade between tracks: ExoPlayer
+    decodes one stream at a time, so true crossfade needs a second pipeline and a mixing stage.
   - `dsp/EqPreset`: built-in preset curves (Flat, Rock, Pop, Jazz, Classical, Bass Boost, Treble
     Boost, Vocal, Loudness), applied as a whole curve so coefficients recompute once, not per band.
   - `EqualizerSettingsStore`: persists bands/preamp/enabled/preset name. The service restores them
