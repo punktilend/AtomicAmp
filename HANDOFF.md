@@ -182,9 +182,8 @@ excerpt tells you nothing. Two contrasting pairs:
 | 3→4 | NOFX, *Ribbed* (16/44.1) | abrupt punk ending; the case where 4s may sound plainly wrong |
 
 If the verdict differs between those two, the answer is probably a shorter default rather than
-no crossfade. Rebuild the material with
-`scratchpad/make-excerpts.ps1` if it's been cleaned up — it takes the ends and starts with
-`ffmpeg -sseof`/`-t` and strips tags so the queue order is unambiguous.
+no crossfade. Rebuild the material any time with `tools/make-crossfade-excerpts.ps1` — it cuts the
+ends and starts with `ffmpeg -sseof`/`-t` and strips tags so the queue order is unambiguous.
 
 ## 8. What's next
 
