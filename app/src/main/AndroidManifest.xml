@@ -16,6 +16,21 @@
             </intent-filter>
         </activity>
 
+        <!--
+          Album art has to be readable by other processes: the system media notification, the lock
+          screen, and a head unit's own now-playing panel all load it themselves. Publishing a
+          file:// URI into app-private storage leaves them with nothing to open.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.albumart"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 
 </manifest>

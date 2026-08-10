@@ -128,7 +128,7 @@ fun PlayerScreen(
                             contentAlignment = Alignment.Center,
                         ) {
                             AlbumArt(
-                                path = uiState.queue.getOrNull(uiState.currentIndex)?.albumArtPath,
+                                artUri = uiState.queue.getOrNull(uiState.currentIndex)?.albumArtUri,
                                 modifier = Modifier.fillMaxHeight().aspectRatio(1f),
                             )
                         }
@@ -355,10 +355,10 @@ private fun SaveQueueDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 }
 
 @Composable
-private fun AlbumArt(path: String?, modifier: Modifier = Modifier) {
-    if (path != null) {
+private fun AlbumArt(artUri: String?, modifier: Modifier = Modifier) {
+    if (artUri != null) {
         AsyncImage(
-            model = File(path),
+            model = artUri,
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = modifier.clip(RoundedCornerShape(8.dp)),

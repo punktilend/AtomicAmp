@@ -18,8 +18,9 @@ import com.atomic.atomicamp.engine.PlaybackService
 import com.atomic.atomicamp.engine.dsp.EqPresets
 import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
 import com.google.common.util.concurrent.MoreExecutors
-import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +31,11 @@ data class Track(
     val uri: Uri,
     val title: String,
     val subtitle: String? = null,
-    val albumArtPath: String? = null,
+    /**
+     * Artwork as a `content://` URI string rather than a filesystem path, so the same value works
+     * both here and for consumers outside this process. Coil loads content URIs directly.
+     */
+    val albumArtUri: String? = null,
 )
 
 data class PlayerUiState(
@@ -72,6 +77,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 currentIndex = controller?.currentMediaItemIndex ?: -1,
                 durationMs = controller?.duration?.coerceAtLeast(0) ?: 0L,
             )
+            attachArtworkBytesToCurrentItem()
         }
 
         /**
@@ -118,7 +124,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 uri = item.localConfiguration?.uri ?: Uri.parse(item.mediaId),
                 title = metadata.title?.toString() ?: item.mediaId,
                 subtitle = listOfNotNull(artist, album).takeIf { it.isNotEmpty() }?.joinToString(" • "),
-                albumArtPath = metadata.artworkUri?.path,
+                // Keep the whole URI: its path component alone is a provider-relative path, not
+                // something that can be opened.
+                albumArtUri = metadata.artworkUri?.toString(),
             )
         }
 
@@ -206,7 +214,10 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 .setTitle(track.title)
                 .setArtist(track.artist)
                 .setAlbumTitle(track.album)
-            track.albumArtPath?.let { path -> metadataBuilder.setArtworkUri(Uri.fromFile(File(path))) }
+            // Must be a content:// URI, not file://: consumers outside this process load artwork
+            // themselves and cannot open our private storage.
+            AlbumArtUris.contentUriFor(getApplication(), track.albumArtPath)
+                ?.let(metadataBuilder::setArtworkUri)
             MediaItem.Builder()
                 .setUri(track.uri)
                 .setMediaId(track.uri)
@@ -220,7 +231,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
         _uiState.value = _uiState.value.copy(
             queue = tracks.map {
-                Track(Uri.parse(it.uri), it.title, "${it.artist} • ${it.album}", it.albumArtPath)
+                Track(
+                    uri = Uri.parse(it.uri),
+                    title = it.title,
+                    subtitle = "${it.artist} • ${it.album}",
+                    albumArtUri = AlbumArtUris.contentUriFor(getApplication(), it.albumArtPath)?.toString(),
+                )
             },
             currentIndex = startIndex,
         )
@@ -253,6 +269,50 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun skipPrevious() {
         controller?.seekToPreviousMediaItem()
+    }
+
+    /**
+     * Puts the current track's artwork into its metadata as raw bytes.
+     *
+     * A `content://` URI is enough for anything running in this process, but the system media
+     * notification, lock screen, and a head unit's own now-playing panel each load artwork in
+     * *their* process, and a non-exported FileProvider gives them nothing to open. Bytes travel
+     * with the metadata, so no cross-process file access is needed.
+     *
+     * Applied to one item at a time rather than baked into every queue entry on purpose: metadata
+     * crosses a Binder transaction with a hard size limit, and a few hundred covers embedded at
+     * once would exceed it. Only the playing item is ever displayed externally.
+     */
+    private fun attachArtworkBytesToCurrentItem() {
+        val c = controller ?: return
+        val index = c.currentMediaItemIndex
+        if (index !in 0 until c.mediaItemCount) return
+
+        val item = c.getMediaItemAt(index)
+        val metadata = item.mediaMetadata
+        if (metadata.artworkData != null) return
+        val artUri = metadata.artworkUri ?: return
+
+        viewModelScope.launch {
+            val bytes = withContext(Dispatchers.IO) {
+                runCatching {
+                    getApplication<Application>().contentResolver.openInputStream(artUri)?.use { it.readBytes() }
+                }.getOrNull()
+            } ?: return@launch
+
+            val current = controller ?: return@launch
+            // The track may have moved on while the bytes were being read.
+            if (current.currentMediaItemIndex != index) return@launch
+
+            val updated = item.buildUpon()
+                .setMediaMetadata(
+                    metadata.buildUpon()
+                        .setArtworkData(bytes, MediaMetadata.PICTURE_TYPE_FRONT_COVER)
+                        .build(),
+                )
+                .build()
+            current.replaceMediaItem(index, updated)
+        }
     }
 
     /** Jumps straight to a queue entry, e.g. from the queue list. */

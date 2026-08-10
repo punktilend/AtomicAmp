@@ -85,6 +85,15 @@ real folder structure.
     with width/height constraints swapped and rotates it back, so the child still behaves as a
     normal horizontal slider (touch handling and accessibility semantics stay intact).
 
+Album art is published two ways, because neither alone is sufficient. Cached art is served as a
+FileProvider `content://` URI, which everything in this process uses; but the system media
+notification, lock screen, and a head unit's own now-playing panel each load artwork in *their*
+process, and a non-exported provider gives them nothing to open. So the playing track's artwork is
+also attached as raw bytes, which travel with the metadata. Bytes go on one item at a time rather
+than every queue entry — metadata crosses a Binder transaction with a hard size limit, and a few
+hundred embedded covers would exceed it. Cached art is downscaled to 512px on the longest edge,
+which keeps those bytes small and list scrolling cheap.
+
 The engine is the source of truth for equalizer state, not the UI. On connect, `PlayerViewModel`
 pulls the real values via a `GET_EQ_STATE` session command rather than assuming zeros — otherwise a
 UI launched against an already-running service would show a flat EQ while audio was audibly

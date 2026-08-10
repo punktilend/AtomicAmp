@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!--
+      Only the cached album art is shared. Everything else in files/ stays private, so exposing
+      this directory doesn't widen access to the library database or playback state.
+    -->
+    <files-path name="album_art" path="album_art/" />
+</paths>
