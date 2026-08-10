@@ -52,6 +52,27 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE artist = :artist ORDER BY album COLLATE NOCASE, discNumber, trackNumber")
     fun tracksByArtist(artist: String): Flow<List<Track>>
 
+    /**
+     * Substring match across the fields a user actually searches by. [pattern] must already carry
+     * its wildcards, with any literal `%`/`_`/`\` in the user's text backslash-escaped -- hence
+     * the explicit `ESCAPE`, without which those escapes would be matched literally.
+     *
+     * `LIKE` is case-insensitive for ASCII in SQLite. Capped by [limit] so a broad query on a
+     * large library can't stall the UI building a huge list.
+     */
+    @Query(
+        """
+        SELECT * FROM tracks
+        WHERE title LIKE :pattern ESCAPE '\'
+           OR artist LIKE :pattern ESCAPE '\'
+           OR album LIKE :pattern ESCAPE '\'
+           OR albumArtist LIKE :pattern ESCAPE '\'
+        ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE, discNumber, trackNumber, title COLLATE NOCASE
+        LIMIT :limit
+        """
+    )
+    fun search(pattern: String, limit: Int): Flow<List<Track>>
+
     /** All directories at or under [prefix]; the repository derives the immediate children from this. */
     @Query("SELECT DISTINCT relativeDir FROM tracks WHERE relativeDir = :prefix OR relativeDir LIKE :likePattern")
     fun relativeDirsUnder(prefix: String, likePattern: String): Flow<List<String>>

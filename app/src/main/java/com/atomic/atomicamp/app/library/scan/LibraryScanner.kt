@@ -180,10 +180,12 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
             val album = taggedAlbum ?: guess.album ?: "Unknown Album"
             val trackNumber = taggedTrackNumber ?: guess.trackNumber ?: 0
 
+            // Only the fields that identify the track count as "guessed". A file tagged properly
+            // but missing just a track number is not uncertain in any way the user cares about,
+            // and flagging it would make the badge meaningless through overuse.
             val metadataInferred = (taggedTitle == null && guess.title != null) ||
                 (taggedArtist == null && guess.artist != null) ||
-                (taggedAlbum == null && guess.album != null) ||
-                (taggedTrackNumber == null && guess.trackNumber != null)
+                (taggedAlbum == null && guess.album != null)
 
             val albumArtist = tag(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST) ?: artist
             val genre = tag(MediaMetadataRetriever.METADATA_KEY_GENRE) ?: ""

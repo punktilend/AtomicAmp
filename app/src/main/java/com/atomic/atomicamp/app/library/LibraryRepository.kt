@@ -37,6 +37,19 @@ class LibraryRepository(context: Context) {
 
     fun tracksInDir(dir: String): Flow<List<Track>> = trackDao.tracksInDir(dir)
 
+    /**
+     * Substring search over title/artist/album. Escapes SQL wildcards in [query] so a literal `%`
+     * typed by the user matches a `%` rather than everything.
+     */
+    fun search(query: String, limit: Int = SEARCH_RESULT_LIMIT): Flow<List<Track>> {
+        val escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        return trackDao.search("%$escaped%", limit)
+    }
+
+    private companion object {
+        const val SEARCH_RESULT_LIMIT = 500
+    }
+
     fun relativeDirsUnder(prefix: String): Flow<List<String>> =
         trackDao.relativeDirsUnder(prefix, likePattern = if (prefix.isEmpty()) "%" else "$prefix/%")
 

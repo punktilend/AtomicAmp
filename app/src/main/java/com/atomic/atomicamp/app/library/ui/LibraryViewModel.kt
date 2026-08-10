@@ -11,10 +11,12 @@ import com.atomic.atomicamp.app.library.data.MusicFolder
 import com.atomic.atomicamp.app.library.data.Track
 import com.atomic.atomicamp.app.library.scan.ScanProgress
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -23,8 +25,12 @@ import kotlinx.coroutines.launch
 
 enum class LibraryTab { SONGS, ALBUMS, ARTISTS, FOLDERS }
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
+
+    private companion object {
+        const val SEARCH_DEBOUNCE_MS = 200L
+    }
 
     private val repository = LibraryRepository(application)
     private val whileUsed = SharingStarted.WhileSubscribed(5000)
@@ -37,6 +43,21 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     private val _scanProgress = MutableStateFlow<ScanProgress?>(null)
     val scanProgress: StateFlow<ScanProgress?> = _scanProgress.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    /**
+     * Debounced so typing doesn't run a `LIKE` scan per keystroke, and blank-trimmed so a query of
+     * only spaces doesn't match the entire library.
+     */
+    val searchResults: StateFlow<List<Track>> = _searchQuery
+        .debounce(SEARCH_DEBOUNCE_MS)
+        .flatMapLatest { query ->
+            val trimmed = query.trim()
+            if (trimmed.isEmpty()) flowOf(emptyList()) else repository.search(trimmed)
+        }
+        .stateIn(viewModelScope, whileUsed, emptyList())
 
     val songs: StateFlow<List<Track>> =
         repository.allTracks.stateIn(viewModelScope, whileUsed, emptyList())
@@ -78,6 +99,14 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun selectTab(newTab: LibraryTab) {
         _tab.value = newTab
+    }
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
+    fun clearSearch() {
+        _searchQuery.value = ""
     }
 
     fun openFolder(name: String) {

@@ -28,9 +28,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -73,6 +75,9 @@ fun LibraryScreen(
     val tab by libraryViewModel.tab.collectAsState()
     val isScanning by libraryViewModel.isScanning.collectAsState()
     val scanProgress by libraryViewModel.scanProgress.collectAsState()
+    val searchQuery by libraryViewModel.searchQuery.collectAsState()
+    val searchResults by libraryViewModel.searchResults.collectAsState()
+    val isSearching = searchQuery.isNotBlank()
 
     val addFolderLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -117,6 +122,28 @@ fun LibraryScreen(
 
             Spacer(Modifier.height(8.dp))
 
+            SearchField(
+                query = searchQuery,
+                onQueryChange = libraryViewModel::setSearchQuery,
+                onClear = libraryViewModel::clearSearch,
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            // Searching spans the whole library, so the tab strip would be misleading while it is
+            // active -- results replace it rather than sitting inside one tab.
+            if (isSearching) {
+                SearchResults(
+                    results = searchResults,
+                    isWide = isWide,
+                    onPlay = { index ->
+                        playerViewModel.playFromLibrary(searchResults, index)
+                        onNavigateToNowPlaying()
+                    },
+                )
+                return@Column
+            }
+
             TabRow(selectedTabIndex = tab.ordinal) {
                 LibraryTab.entries.forEach { entry ->
                     Tab(
@@ -137,6 +164,31 @@ fun LibraryScreen(
             }
         }
     }
+}
+
+@Composable
+private fun SearchField(query: String, onQueryChange: (String) -> Unit, onClear: () -> Unit) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = Modifier.fillMaxWidth(),
+        placeholder = { Text("Search songs, artists, albums") },
+        singleLine = true,
+        trailingIcon = {
+            if (query.isNotEmpty()) {
+                TextButton(onClick = onClear) { Text("Clear") }
+            }
+        },
+    )
+}
+
+@Composable
+private fun SearchResults(results: List<Track>, isWide: Boolean, onPlay: (Int) -> Unit) {
+    if (results.isEmpty()) {
+        EmptyHint("No matches.")
+        return
+    }
+    TrackList(results, isWide, onPlay)
 }
 
 /** Track lists go multi-column on wide screens so more is reachable without scrolling. */
