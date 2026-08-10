@@ -72,8 +72,8 @@ class LibraryRepository(context: Context) {
         playlistDao.appendTracks(playlistId, trackUris)
     }
 
-    suspend fun removeFromPlaylist(playlistId: Long, trackUri: String) = withContext(Dispatchers.IO) {
-        playlistDao.removeTrackAndCompact(playlistId, trackUri)
+    suspend fun removeFromPlaylist(playlistId: Long, trackId: String) = withContext(Dispatchers.IO) {
+        playlistDao.removeTrackAndCompact(playlistId, trackId)
     }
 
     private companion object {

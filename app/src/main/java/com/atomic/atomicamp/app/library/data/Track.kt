@@ -14,7 +14,16 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "tracks")
 data class Track(
-    @PrimaryKey val uri: String,
+    /**
+     * Identity of the track, which is no longer the same as the file it lives in.
+     *
+     * An album ripped as one FLAC with a cue sheet yields many tracks sharing a single [uri], so
+     * the file path cannot be the key. For an ordinary file this is just the uri; for a cue track
+     * it also carries the start offset. See [Companion.idFor].
+     */
+    @PrimaryKey val id: String,
+    /** The media file to open. Shared by every cue track cut from the same rip. */
+    val uri: String,
     val folderUri: String,
     val relativeDir: String,
     val title: String,
@@ -34,4 +43,22 @@ data class Track(
      * tag. Surfaced in the UI so a guess is never presented as fact.
      */
     val metadataInferred: Boolean = false,
-)
+    /**
+     * Where this track starts within [uri], for a track cut from a longer rip. Null for an
+     * ordinary file, which is played whole.
+     */
+    val clipStartMs: Long? = null,
+    /** Where it ends; null means play to the end of the file — including the last cue track. */
+    val clipEndMs: Long? = null,
+) {
+    val isCueTrack: Boolean get() = clipStartMs != null
+
+    companion object {
+        /**
+         * A file alone can't identify a track, since a cue rip puts many in one file. Including
+         * the start offset keeps them distinct and stable across rescans.
+         */
+        fun idFor(uri: String, clipStartMs: Long?): String =
+            if (clipStartMs == null) uri else "$uri#$clipStartMs"
+    }
+}

@@ -31,12 +31,13 @@ data class Playlist(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("playlistId"), Index("trackUri")],
+    indices = [Index("playlistId"), Index("trackId")],
 )
 data class PlaylistTrack(
     val playlistId: Long,
     val position: Int,
-    val trackUri: String,
+    /** References [Track.id], not the file uri — a cue rip has many tracks per file. */
+    val trackId: String,
 )
 
 /** A playlist plus how many of its entries currently resolve to present media. */

@@ -290,7 +290,8 @@ private fun QueuePanel(
         SaveQueueDialog(
             onDismiss = { showSave = false },
             onSave = { name ->
-                onSaveAsPlaylist(name, queue.map { it.uri.toString() })
+                // Track ids, not file uris: a cue-split album has many tracks per file.
+                onSaveAsPlaylist(name, queue.map { it.id })
                 showSave = false
             },
         )

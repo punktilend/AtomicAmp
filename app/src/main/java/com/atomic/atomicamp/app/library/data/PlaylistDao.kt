@@ -28,7 +28,7 @@ interface PlaylistDao {
         SELECT p.id AS id,
                p.name AS name,
                (SELECT COUNT(*) FROM playlist_tracks pt
-                  JOIN tracks t ON t.uri = pt.trackUri
+                  JOIN tracks t ON t.id = pt.trackId
                  WHERE pt.playlistId = p.id) AS trackCount
         FROM playlists p
         ORDER BY p.name COLLATE NOCASE
@@ -43,7 +43,7 @@ interface PlaylistDao {
     @Query(
         """
         SELECT t.* FROM playlist_tracks pt
-        JOIN tracks t ON t.uri = pt.trackUri
+        JOIN tracks t ON t.id = pt.trackId
         WHERE pt.playlistId = :playlistId
         ORDER BY pt.position
         """
@@ -56,8 +56,8 @@ interface PlaylistDao {
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_tracks WHERE playlistId = :playlistId")
     suspend fun nextPosition(playlistId: Long): Int
 
-    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackUri = :trackUri")
-    suspend fun removeEntry(playlistId: Long, trackUri: String)
+    @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId AND trackId = :trackId")
+    suspend fun removeEntry(playlistId: Long, trackId: String)
 
     @Query("SELECT * FROM playlist_tracks WHERE playlistId = :playlistId ORDER BY position")
     suspend fun entries(playlistId: Long): List<PlaylistTrack>
@@ -65,11 +65,11 @@ interface PlaylistDao {
     @Query("DELETE FROM playlist_tracks WHERE playlistId = :playlistId")
     suspend fun clearEntries(playlistId: Long)
 
-    /** Appends [trackUris], keeping positions contiguous from the current end. */
+    /** Appends [trackIds], keeping positions contiguous from the current end. */
     @Transaction
-    suspend fun appendTracks(playlistId: Long, trackUris: List<String>) {
+    suspend fun appendTracks(playlistId: Long, trackIds: List<String>) {
         val start = nextPosition(playlistId)
-        insertEntries(trackUris.mapIndexed { i, uri -> PlaylistTrack(playlistId, start + i, uri) })
+        insertEntries(trackIds.mapIndexed { i, id -> PlaylistTrack(playlistId, start + i, id) })
     }
 
     /**
@@ -77,8 +77,8 @@ interface PlaylistDao {
      * gaps and later appends can collide with the composite primary key.
      */
     @Transaction
-    suspend fun removeTrackAndCompact(playlistId: Long, trackUri: String) {
-        removeEntry(playlistId, trackUri)
+    suspend fun removeTrackAndCompact(playlistId: Long, trackId: String) {
+        removeEntry(playlistId, trackId)
         val remaining = entries(playlistId)
         clearEntries(playlistId)
         insertEntries(remaining.mapIndexed { i, e -> e.copy(position = i) })

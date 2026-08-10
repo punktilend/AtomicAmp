@@ -28,6 +28,8 @@ import kotlinx.coroutines.launch
 import com.atomic.atomicamp.app.library.data.Track as LibraryTrack
 
 data class Track(
+    /** Library track id, which for a cue-split rip is not the same as the file [uri]. */
+    val id: String,
     val uri: Uri,
     val title: String,
     val subtitle: String? = null,
@@ -121,6 +123,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             val artist = metadata.artist?.toString()
             val album = metadata.albumTitle?.toString()
             Track(
+                id = item.mediaId,
                 uri = item.localConfiguration?.uri ?: Uri.parse(item.mediaId),
                 title = metadata.title?.toString() ?: item.mediaId,
                 subtitle = listOfNotNull(artist, album).takeIf { it.isNotEmpty() }?.joinToString(" • "),
@@ -192,8 +195,12 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun addTracks(uris: List<Uri>) {
         val c = controller ?: return
-        val newTracks = uris.map { uri -> Track(uri, queryDisplayName(uri)) }
-        val mediaItems = newTracks.map { MediaItem.fromUri(it.uri) }
+        // Ad-hoc files picked outside the library: the file is the whole track, so its uri
+        // doubles as its id.
+        val newTracks = uris.map { uri -> Track(id = uri.toString(), uri = uri, title = queryDisplayName(uri)) }
+        val mediaItems = newTracks.map {
+            MediaItem.Builder().setUri(it.uri).setMediaId(it.id).build()
+        }
         val wasEmpty = _uiState.value.queue.isEmpty()
         c.addMediaItems(mediaItems)
         c.prepare()
@@ -218,11 +225,24 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             // themselves and cannot open our private storage.
             AlbumArtUris.contentUriFor(getApplication(), track.albumArtPath)
                 ?.let(metadataBuilder::setArtworkUri)
-            MediaItem.Builder()
+
+            val builder = MediaItem.Builder()
                 .setUri(track.uri)
-                .setMediaId(track.uri)
+                // The id, not the uri: a cue-split album has many tracks in one file.
+                .setMediaId(track.id)
                 .setMediaMetadata(metadataBuilder.build())
-                .build()
+
+            track.clipStartMs?.let { start ->
+                // Plays a slice of a longer rip. No end position means run to the end of the file,
+                // which is right for the last track on a cue sheet.
+                builder.setClippingConfiguration(
+                    MediaItem.ClippingConfiguration.Builder()
+                        .setStartPositionMs(start)
+                        .apply { track.clipEndMs?.let(::setEndPositionMs) }
+                        .build(),
+                )
+            }
+            builder.build()
         }
 
         c.setMediaItems(mediaItems, startIndex.coerceIn(0, tracks.lastIndex), 0L)
@@ -232,6 +252,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.value = _uiState.value.copy(
             queue = tracks.map {
                 Track(
+                    id = it.id,
                     uri = Uri.parse(it.uri),
                     title = it.title,
                     subtitle = "${it.artist} • ${it.album}",

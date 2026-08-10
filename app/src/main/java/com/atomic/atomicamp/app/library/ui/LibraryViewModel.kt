@@ -136,8 +136,8 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun removeFromPlaylist(playlistId: Long, trackUri: String) {
-        viewModelScope.launch { repository.removeFromPlaylist(playlistId, trackUri) }
+    fun removeFromPlaylist(playlistId: Long, trackId: String) {
+        viewModelScope.launch { repository.removeFromPlaylist(playlistId, trackId) }
     }
 
     fun setSearchQuery(query: String) {

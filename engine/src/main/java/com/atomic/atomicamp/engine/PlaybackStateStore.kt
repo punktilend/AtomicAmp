@@ -2,6 +2,7 @@ package com.atomic.atomicamp.engine
 
 import android.content.Context
 import android.net.Uri
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -31,10 +32,16 @@ internal class PlaybackStateStore(context: Context) {
         const val KEY_REPEAT_MODE = "repeat_mode"
 
         const val FIELD_URI = "uri"
+        const val FIELD_MEDIA_ID = "mediaId"
         const val FIELD_TITLE = "title"
         const val FIELD_ARTIST = "artist"
         const val FIELD_ALBUM = "album"
         const val FIELD_ARTWORK = "artwork"
+
+        // A cue-split track is a slice of a longer file; without these it would resume as the
+        // whole album from the beginning.
+        const val FIELD_CLIP_START = "clipStart"
+        const val FIELD_CLIP_END = "clipEnd"
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -59,10 +66,16 @@ internal class PlaybackStateStore(context: Context) {
             array.put(
                 JSONObject().apply {
                     put(FIELD_URI, item.localConfiguration?.uri?.toString() ?: item.mediaId)
+                    put(FIELD_MEDIA_ID, item.mediaId)
                     putOpt(FIELD_TITLE, metadata.title?.toString())
                     putOpt(FIELD_ARTIST, metadata.artist?.toString())
                     putOpt(FIELD_ALBUM, metadata.albumTitle?.toString())
                     putOpt(FIELD_ARTWORK, metadata.artworkUri?.toString())
+                    val clipping = item.clippingConfiguration
+                    if (clipping.startPositionMs > 0L) put(FIELD_CLIP_START, clipping.startPositionMs)
+                    if (clipping.endPositionMs != C.TIME_END_OF_SOURCE) {
+                        put(FIELD_CLIP_END, clipping.endPositionMs)
+                    }
                 },
             )
         }
@@ -100,11 +113,20 @@ internal class PlaybackStateStore(context: Context) {
                     .setAlbumTitle(obj.optString(FIELD_ALBUM).takeIf { it.isNotEmpty() })
                     .setArtworkUri(obj.optString(FIELD_ARTWORK).takeIf { it.isNotEmpty() }?.let(Uri::parse))
                     .build()
-                items += MediaItem.Builder()
+                val builder = MediaItem.Builder()
                     .setUri(uri)
-                    .setMediaId(uri)
+                    .setMediaId(obj.optString(FIELD_MEDIA_ID).takeIf { it.isNotEmpty() } ?: uri)
                     .setMediaMetadata(metadata)
-                    .build()
+
+                if (obj.has(FIELD_CLIP_START) || obj.has(FIELD_CLIP_END)) {
+                    builder.setClippingConfiguration(
+                        MediaItem.ClippingConfiguration.Builder()
+                            .setStartPositionMs(obj.optLong(FIELD_CLIP_START, 0L))
+                            .setEndPositionMs(obj.optLong(FIELD_CLIP_END, C.TIME_END_OF_SOURCE))
+                            .build(),
+                    )
+                }
+                items += builder.build()
             }
         } catch (e: org.json.JSONException) {
             clear()

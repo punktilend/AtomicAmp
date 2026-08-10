@@ -52,14 +52,14 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         val startedAtMs = System.currentTimeMillis()
         val rootDocId = DocumentsContract.getTreeDocumentId(treeUri)
         val batch = mutableListOf<Track>()
-        val seenUris = mutableSetOf<String>()
+        val seenIds = mutableSetOf<String>()
         val counter = ScanCounter(startedAtMs, onProgress)
 
-        walk(treeUri, rootDocId, relativeDir = "", batch, seenUris, counter)
+        walk(treeUri, rootDocId, relativeDir = "", batch, seenIds, counter)
         if (batch.isNotEmpty()) {
             trackDao.upsert(batch.toList())
         }
-        pruneMissing(treeUri.toString(), seenUris)
+        pruneMissing(treeUri.toString(), seenIds)
         counter.emit(force = true)
     }
 
@@ -98,9 +98,9 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
      * then costs nothing, and the UI never blinks through an empty library. Chunked to stay under
      * SQLite's bound-variable limit.
      */
-    private suspend fun pruneMissing(folderUri: String, seenUris: Set<String>) {
-        val stale = trackDao.urisInFolder(folderUri).filterNot { it in seenUris }
-        stale.chunked(SQLITE_VARIABLE_LIMIT).forEach { trackDao.deleteByUris(it) }
+    private suspend fun pruneMissing(folderUri: String, seenIds: Set<String>) {
+        val stale = trackDao.trackIdsInFolder(folderUri).filterNot { it in seenIds }
+        stale.chunked(SQLITE_VARIABLE_LIMIT).forEach { trackDao.deleteByIds(it) }
     }
 
     private suspend fun walk(
@@ -108,7 +108,7 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         parentDocId: String,
         relativeDir: String,
         batch: MutableList<Track>,
-        seenUris: MutableSet<String>,
+        seenIds: MutableSet<String>,
         counter: ScanCounter,
     ) {
         val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentDocId)
@@ -136,20 +136,126 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
                 name.substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS
         }?.let { (docId, _, _) -> DocumentsContract.buildDocumentUriUsingTree(treeUri, docId) }
 
+        // An album ripped as one continuous file is described entirely by its cue sheet; without
+        // reading it the whole album indexes as a single hour-long entry.
+        val cueSplit = readSingleFileCue(treeUri, children)
+
         for ((docId, name, mime) in children) {
             if (mime == Document.MIME_TYPE_DIR) {
                 val childRelativeDir = if (relativeDir.isEmpty()) name else "$relativeDir/$name"
-                walk(treeUri, docId, childRelativeDir, batch, seenUris, counter)
+                walk(treeUri, docId, childRelativeDir, batch, seenIds, counter)
             } else if (name.substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS) {
                 val fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
-                seenUris += fileUri.toString()
-                extractTrack(fileUri, treeUri, relativeDir, name, folderArtUri)?.let { batch += it }
+
+                val cueTracks = if (cueSplit != null && cueSplit.matches(name)) {
+                    extractCueTracks(fileUri, treeUri, relativeDir, cueSplit.sheet, folderArtUri)
+                } else {
+                    null
+                }
+
+                if (cueTracks != null) {
+                    cueTracks.forEach { seenIds += it.id }
+                    batch += cueTracks
+                } else {
+                    seenIds += Track.idFor(fileUri.toString(), null)
+                    extractTrack(fileUri, treeUri, relativeDir, name, folderArtUri)?.let { batch += it }
+                }
                 counter.increment()
                 if (batch.size >= BATCH_SIZE) {
                     trackDao.upsert(batch.toList())
                     batch.clear()
                 }
             }
+        }
+    }
+
+    /** A cue sheet in this directory that describes one continuous audio file. */
+    private class CueSplit(val sheet: CueSheet) {
+        /** The cue names its audio file; only that file gets split by it. */
+        fun matches(fileName: String): Boolean =
+            sheet.audioFileName?.equals(fileName, ignoreCase = true) == true
+    }
+
+    /**
+     * Reads a cue sheet from this directory, if one describes a single continuous file.
+     *
+     * Sheets naming several files describe an album that is already one file per track, with times
+     * restarting at zero for each — splitting on those would stack every track at 0:00, so they are
+     * ignored and their files indexed normally.
+     */
+    private fun readSingleFileCue(
+        treeUri: Uri,
+        children: List<Triple<String, String, String>>,
+    ): CueSplit? {
+        val cueDocId = children.firstOrNull { (_, name, mime) ->
+            mime != Document.MIME_TYPE_DIR && name.substringAfterLast('.', "").lowercase() == "cue"
+        }?.first ?: return null
+
+        val cueUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cueDocId)
+        val text = try {
+            context.contentResolver.openInputStream(cueUri)?.use { it.readBytes().decodeToString() }
+        } catch (e: Exception) {
+            null
+        } ?: return null
+
+        val sheet = CueParser.parse(text)
+        return if (sheet.isSingleFile && sheet.tracks.isNotEmpty()) CueSplit(sheet) else null
+    }
+
+    /**
+     * Turns one audio file into the tracks its cue sheet describes.
+     *
+     * The file is opened once for its duration and art; per-track metadata comes from the sheet,
+     * not from re-reading the file for every track.
+     */
+    private fun extractCueTracks(
+        fileUri: Uri,
+        treeUri: Uri,
+        relativeDir: String,
+        sheet: CueSheet,
+        folderArtUri: Uri?,
+    ): List<Track>? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(context, fileUri)
+            val fileDurationMs = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+            val albumArtist = sheet.albumPerformer ?: "Unknown Artist"
+            val album = sheet.albumTitle ?: "Unknown Album"
+            val albumArtPath = cacheAlbumArt(retriever, albumArtist, album, folderArtUri)
+            val now = System.currentTimeMillis()
+
+            sheet.tracks.map { cue ->
+                // The sheet has no end for the final track; it runs to the end of the file.
+                val endMs = cue.endMs
+                val durationMs = (endMs ?: fileDurationMs) - cue.startMs
+                Track(
+                    id = Track.idFor(fileUri.toString(), cue.startMs),
+                    uri = fileUri.toString(),
+                    folderUri = treeUri.toString(),
+                    relativeDir = relativeDir,
+                    title = cue.title,
+                    artist = cue.performer ?: albumArtist,
+                    album = album,
+                    albumArtist = albumArtist,
+                    genre = "",
+                    composer = "",
+                    year = sheet.year ?: 0,
+                    trackNumber = cue.trackNumber,
+                    discNumber = 0,
+                    durationMs = durationMs.coerceAtLeast(0L),
+                    albumArtPath = albumArtPath,
+                    dateAddedMs = now,
+                    // Everything came from the sheet, which is a real source, not a guess.
+                    metadataInferred = false,
+                    clipStartMs = cue.startMs,
+                    clipEndMs = endMs,
+                )
+            }
+        } catch (e: Exception) {
+            null
+        } finally {
+            retriever.release()
         }
     }
 
@@ -204,6 +310,7 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
             val albumArtPath = cacheAlbumArt(retriever, albumArtist, album, folderArtUri)
 
             Track(
+                id = Track.idFor(fileUri.toString(), null),
                 uri = fileUri.toString(),
                 folderUri = treeUri.toString(),
                 relativeDir = relativeDir,

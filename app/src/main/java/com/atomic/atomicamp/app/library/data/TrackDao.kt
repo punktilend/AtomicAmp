@@ -15,11 +15,11 @@ interface TrackDao {
     @Query("DELETE FROM tracks WHERE folderUri = :folderUri")
     suspend fun deleteByFolder(folderUri: String)
 
-    @Query("SELECT uri FROM tracks WHERE folderUri = :folderUri")
-    suspend fun urisInFolder(folderUri: String): List<String>
+    @Query("SELECT id FROM tracks WHERE folderUri = :folderUri")
+    suspend fun trackIdsInFolder(folderUri: String): List<String>
 
-    @Query("DELETE FROM tracks WHERE uri IN (:uris)")
-    suspend fun deleteByUris(uris: List<String>)
+    @Query("DELETE FROM tracks WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<String>)
 
     @Query("SELECT * FROM tracks ORDER BY artist COLLATE NOCASE, album COLLATE NOCASE, discNumber, trackNumber, title COLLATE NOCASE")
     fun allTracks(): Flow<List<Track>>

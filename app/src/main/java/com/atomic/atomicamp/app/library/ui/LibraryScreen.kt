@@ -224,7 +224,7 @@ private fun PlaylistsTab(
                                 onPlay()
                             }
                         }
-                        TextButton(onClick = { vm.removeFromPlaylist(playlist.id, track.uri) }) {
+                        TextButton(onClick = { vm.removeFromPlaylist(playlist.id, track.id) }) {
                             Text("Remove")
                         }
                     }

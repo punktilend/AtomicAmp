@@ -87,6 +87,10 @@ real folder structure.
     Measured throughput: **300 tracks in 6.6s — ~45 files/sec, 22ms per file** (emulator, local
     storage). Tag reading means opening every file, so that extrapolates to roughly 20s for 1,000
     tracks and ~2 minutes for 5,000. Expect real USB storage on the head unit to be slower.
+  - `library/scan/CueSheet`: albums ripped as one continuous FLAC with a `.cue` are split into
+    their real tracks. Each becomes a row sharing the file's uri, with start/end offsets, and plays
+    via `MediaItem.ClippingConfiguration`. Sheets naming several files describe an album that is
+    already one file per track — their times restart at zero for each, so they are left alone.
   - `library/ui/LibraryScreen`: Songs / Albums / Artists / Folders tabs; the Folders tab mirrors
     the real filesystem structure the way Poweramp's does.
   - `PlayerScreen`: the Now Playing destination — album art, transport controls, and EQ wired live
