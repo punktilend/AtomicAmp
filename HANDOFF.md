@@ -166,10 +166,31 @@ real playback. Also confirmed no regression with crossfade off.
 **Not verified: how it sounds.** For a crossfade that is the entire point, which is why it sits on a
 branch. Listen before merging.
 
+**The listening session is already set up — it needs ears, not setup.** On the `ATOTO_S8_A10`
+emulator: the `crossfade` build is installed, `Music/CrossfadeTest` is granted and scanned, the
+crossfade control is set to **4s**, and the queue is loaded and paused partway through track 1. To
+resume, boot that AVD, open AtomicAmp, press **Play**. The emulator's disk persists, so the grant,
+library and setting all survive a shutdown.
+
+The four excerpts are deliberately built as *real* transitions — the genuine last 35 s of one track
+running into the genuine first 35 s of the next, because a crossfade judged against a spliced
+excerpt tells you nothing. Two contrasting pairs:
+
+| # | material | why |
+|---|---|---|
+| 1→2 | Willie Nelson, *Shotgun Willie* (24/192) | sustained country ending; the case a crossfade should flatter |
+| 3→4 | NOFX, *Ribbed* (16/44.1) | abrupt punk ending; the case where 4s may sound plainly wrong |
+
+If the verdict differs between those two, the answer is probably a shorter default rather than
+no crossfade. Rebuild the material with
+`scratchpad/make-excerpts.ps1` if it's been cleaned up — it takes the ends and starts with
+`ffmpeg -sseof`/`-t` and strips tags so the queue order is unambiguous.
+
 ## 8. What's next
 
 1. **Answer the SAF/USB question** — blocks the most.
-2. **Listen to the crossfade branch**, then merge or tune.
+2. **Listen to the crossfade branch**, then merge or tune. Nothing needs building or wiring first —
+   section 7 explains the session already waiting on the `ATOTO_S8_A10` emulator.
 3. ~~Room migration tests~~ — **done**. `LibraryMigrationTest` covers 1→2, 2→3, 3→4 and the whole
    1→4 journey, asserting both schema and surviving rows. Two things to know:
    - `exportSchema` is now on and `app/schemas/*.json` is **committed on purpose** — those files
