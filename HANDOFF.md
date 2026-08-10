@@ -66,8 +66,16 @@ silence.
 `K:\Media\Music` — **3,164 FLACs, 61 GB**. Facts established by scanning it, not assuming:
 
 - **0 of 3,150 readable files have ReplayGain tags.** This is why loudness is measured in real time
-  rather than read. Don't "add ReplayGain support" — it would do nothing. (14 files didn't parse as
-  FLAC at all; worth investigating sometime.)
+  rather than read. Don't "add ReplayGain support" — it would do nothing. (That survey predates the
+  library reaching 3,350 files, so the count is stale for anything added since, though the
+  conclusion is unlikely to have flipped.)
+- **The 14 files that "didn't parse as FLAC" are fine — settled, don't re-investigate.** They are
+  all of *NOFX — Ribbed*, every track, each a valid FLAC carrying a ~4.5 KB ID3v2 tag *ahead* of
+  the `fLaC` magic. Only the PC-side survey script cared, because it looked for the magic at offset
+  zero. `MediaMetadataRetriever` — which is how `LibraryScanner` reads every tag — handles the
+  prefix transparently: measured on API 29 against the same file with the tag stripped, both give
+  identical mime, duration and tags. Nothing in the app checks the magic itself, so the album
+  scans and plays normally.
 - **52 cue sheets describing 569 audio tracks.** 47 albums are a single FLAC + cue and are split
   into real tracks. **5 sheets name multiple FILEs** — those albums are already one FLAC per track
   with times restarting at zero, and splitting them would stack every track at 0:00. That
