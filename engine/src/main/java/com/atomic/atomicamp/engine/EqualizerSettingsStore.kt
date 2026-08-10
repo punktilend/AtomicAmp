@@ -21,6 +21,14 @@ internal class EqualizerSettingsStore(context: Context) {
         const val KEY_PREAMP = "preamp_db"
         const val KEY_PRESET = "preset_name"
         const val KEY_BAND_PREFIX = "band_"
+        const val KEY_LEVELER = "leveler_enabled"
+    }
+
+    /** Whether volume leveling between tracks is on. Off by default: it changes what you hear. */
+    val levelerEnabled: Boolean get() = prefs.getBoolean(KEY_LEVELER, false)
+
+    fun saveLevelerEnabled(value: Boolean) {
+        prefs.edit().putBoolean(KEY_LEVELER, value).apply()
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

@@ -7,6 +7,7 @@ import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import com.atomic.atomicamp.engine.dsp.FadeAudioProcessor
 import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
+import com.atomic.atomicamp.engine.dsp.LevelerAudioProcessor
 
 /**
  * Installs [equalizer] directly into ExoPlayer's audio sink pipeline. This is the extension
@@ -16,6 +17,7 @@ import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
 internal class EngineRenderersFactory(
     context: Context,
     private val equalizer: GraphicEqualizerAudioProcessor,
+    private val leveler: LevelerAudioProcessor,
     private val fade: FadeAudioProcessor,
 ) : DefaultRenderersFactory(context) {
 
@@ -27,9 +29,10 @@ internal class EngineRenderersFactory(
         return DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(enableFloatOutput)
             .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-            // Order matters: the fade attenuates the equalized signal. Fading before the filters
-            // would feed a ramped signal into them and colour the result as the gain moved.
-            .setAudioProcessors(arrayOf<AudioProcessor>(equalizer, fade))
+            // Order matters. The leveler measures the equalized signal, since that is what is
+            // actually heard. The fade comes last so its envelope is never mistaken for a change
+            // in the track's loudness and corrected away.
+            .setAudioProcessors(arrayOf<AudioProcessor>(equalizer, leveler, fade))
             .build()
     }
 }

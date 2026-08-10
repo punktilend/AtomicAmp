@@ -52,6 +52,8 @@ data class PlayerUiState(
     val preampDb: Float = 0f,
     val bandGainsDb: FloatArray = FloatArray(GraphicEqualizerAudioProcessor.BAND_COUNT),
     val presetName: String = EqPresets.FLAT.name,
+    /** Volume leveling between tracks. */
+    val levelerEnabled: Boolean = false,
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -172,6 +174,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     eqEnabled = extras.getBoolean(PlaybackService.EXTRA_ENABLED, true),
                     presetName = extras.getString(PlaybackService.EXTRA_PRESET_NAME)
                         ?: EqPresets.FLAT.name,
+                    levelerEnabled = extras.getBoolean(PlaybackService.EXTRA_LEVELER_ENABLED),
                 )
             },
             MoreExecutors.directExecutor(),
@@ -397,6 +400,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val args = Bundle().apply { putFloat(PlaybackService.EXTRA_GAIN_DB, gainDb) }
         c.sendCustomCommand(SessionCommand(PlaybackService.COMMAND_SET_PREAMP, Bundle.EMPTY), args)
         _uiState.value = _uiState.value.copy(preampDb = gainDb)
+    }
+
+    fun setLevelerEnabled(enabled: Boolean) {
+        val c = controller ?: return
+        val args = Bundle().apply { putBoolean(PlaybackService.EXTRA_LEVELER_ENABLED, enabled) }
+        c.sendCustomCommand(SessionCommand(PlaybackService.COMMAND_SET_LEVELER, Bundle.EMPTY), args)
+        _uiState.value = _uiState.value.copy(levelerEnabled = enabled)
     }
 
     fun setEqEnabled(enabled: Boolean) {

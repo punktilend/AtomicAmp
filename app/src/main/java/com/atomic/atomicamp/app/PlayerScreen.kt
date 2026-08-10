@@ -168,6 +168,8 @@ fun PlayerScreen(
                                 preampDb = uiState.preampDb,
                                 bandGainsDb = uiState.bandGainsDb,
                                 presetName = uiState.presetName,
+                                levelerEnabled = uiState.levelerEnabled,
+                                onLevelerChange = viewModel::setLevelerEnabled,
                                 onEqEnabledChange = viewModel::setEqEnabled,
                                 onPreampChange = viewModel::setPreamp,
                                 onBandChange = viewModel::setBandGain,
@@ -207,6 +209,8 @@ fun PlayerScreen(
                     preampDb = uiState.preampDb,
                     bandGainsDb = uiState.bandGainsDb,
                     presetName = uiState.presetName,
+                    levelerEnabled = uiState.levelerEnabled,
+                    onLevelerChange = viewModel::setLevelerEnabled,
                     onEqEnabledChange = viewModel::setEqEnabled,
                     onPreampChange = viewModel::setPreamp,
                     onBandChange = viewModel::setBandGain,
@@ -484,6 +488,8 @@ private fun EqualizerPanel(
     preampDb: Float,
     bandGainsDb: FloatArray,
     presetName: String,
+    levelerEnabled: Boolean,
+    onLevelerChange: (Boolean) -> Unit,
     onEqEnabledChange: (Boolean) -> Unit,
     onPreampChange: (Float) -> Unit,
     onBandChange: (Int, Float) -> Unit,
@@ -504,6 +510,14 @@ private fun EqualizerPanel(
         }
 
         PresetChips(presetName = presetName, onPresetSelected = onPresetSelected)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Level volume between tracks", style = MaterialTheme.typography.labelMedium)
+            Switch(checked = levelerEnabled, onCheckedChange = onLevelerChange)
+        }
         Spacer(Modifier.height(4.dp))
 
         if (vertical) {

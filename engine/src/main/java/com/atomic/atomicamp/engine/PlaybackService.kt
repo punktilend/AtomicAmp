@@ -17,6 +17,7 @@ import androidx.media3.session.SessionResult
 import com.atomic.atomicamp.engine.dsp.EqPresets
 import com.atomic.atomicamp.engine.dsp.FadeAudioProcessor
 import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
+import com.atomic.atomicamp.engine.dsp.LevelerAudioProcessor
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 
@@ -33,6 +34,8 @@ class PlaybackService : MediaSessionService() {
         const val COMMAND_SET_EQ_ENABLED = "atomicamp.SET_EQ_ENABLED"
         const val COMMAND_APPLY_PRESET = "atomicamp.APPLY_PRESET"
         const val COMMAND_GET_EQ_STATE = "atomicamp.GET_EQ_STATE"
+        const val COMMAND_SET_LEVELER = "atomicamp.SET_LEVELER"
+        const val EXTRA_LEVELER_ENABLED = "leveler_enabled"
         const val EXTRA_BAND_INDEX = "band_index"
         const val EXTRA_GAIN_DB = "gain_db"
         const val EXTRA_ENABLED = "enabled"
@@ -44,6 +47,7 @@ class PlaybackService : MediaSessionService() {
 
     val equalizer = GraphicEqualizerAudioProcessor()
     private val fade = FadeAudioProcessor()
+    private val leveler = LevelerAudioProcessor()
 
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
@@ -78,7 +82,9 @@ class PlaybackService : MediaSessionService() {
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
-        player = ExoPlayer.Builder(this, EngineRenderersFactory(this, equalizer, fade))
+        leveler.enabled = settingsStore.levelerEnabled
+
+        player = ExoPlayer.Builder(this, EngineRenderersFactory(this, equalizer, leveler, fade))
             .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
             // Pause when the audio route drops (Bluetooth disconnect, headset unplug) instead of
             // continuing out loud on the unit's speakers.
@@ -112,6 +118,9 @@ class PlaybackService : MediaSessionService() {
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             playbackStateStore.save(player)
+            // Judge the new track's level on its own, rather than carrying over a correction that
+            // was right for the last one.
+            leveler.resetForNewTrack()
         }
 
         override fun onTimelineChanged(timeline: Timeline, reason: Int) {
@@ -133,6 +142,7 @@ class PlaybackService : MediaSessionService() {
         putFloat(EXTRA_GAIN_DB, equalizer.getPreampGain())
         putBoolean(EXTRA_ENABLED, equalizer.isEqEnabled())
         putString(EXTRA_PRESET_NAME, settingsStore.presetName)
+        putBoolean(EXTRA_LEVELER_ENABLED, leveler.enabled)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession =
@@ -168,6 +178,7 @@ class PlaybackService : MediaSessionService() {
                 .add(SessionCommand(COMMAND_SET_EQ_ENABLED, Bundle.EMPTY))
                 .add(SessionCommand(COMMAND_APPLY_PRESET, Bundle.EMPTY))
                 .add(SessionCommand(COMMAND_GET_EQ_STATE, Bundle.EMPTY))
+                .add(SessionCommand(COMMAND_SET_LEVELER, Bundle.EMPTY))
                 .build()
             return MediaSession.ConnectionResult.accept(
                 availableSessionCommands,
@@ -210,6 +221,12 @@ class PlaybackService : MediaSessionService() {
                         equalizer.setBandGains(preset.gainsDb)
                         settingsStore.save(equalizer, preset.name)
                     }
+                }
+
+                COMMAND_SET_LEVELER -> {
+                    val on = args.getBoolean(EXTRA_LEVELER_ENABLED)
+                    leveler.enabled = on
+                    settingsStore.saveLevelerEnabled(on)
                 }
 
                 COMMAND_GET_EQ_STATE -> {
