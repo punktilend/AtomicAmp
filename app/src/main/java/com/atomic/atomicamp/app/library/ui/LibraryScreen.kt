@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.items
@@ -37,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,7 +47,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -68,6 +73,9 @@ private val ROW_MIN_HEIGHT = 76.dp
  * screen, and 1 in phone portrait — without hardcoding a count per device.
  */
 private val LIST_COLUMN_MIN_WIDTH = 380.dp
+
+/** Narrow enough not to steal list width, wide enough to hit while moving. */
+private val RAIL_WIDTH = 28.dp
 
 @Composable
 fun LibraryScreen(
@@ -314,14 +322,67 @@ private fun SearchResults(results: List<Track>, isWide: Boolean, onPlay: (Int) -
         EmptyHint("No matches.")
         return
     }
-    TrackList(results, isWide, onPlay)
+    TrackList(results, isWide, onPlay = onPlay)
+}
+
+/**
+ * Letter rail for jumping around a long list.
+ *
+ * A few hundred tracks are impractical to reach by scrolling, and search only helps when you
+ * already know what you want. Only letters actually present are shown, so every target goes
+ * somewhere.
+ */
+@Composable
+private fun AlphabetRail(
+    index: List<Pair<String, Int>>,
+    onJumpTo: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (index.size < 2) return
+    Column(
+        modifier = modifier.fillMaxHeight().width(RAIL_WIDTH),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        index.forEach { (letter, itemIndex) ->
+            Text(
+                text = letter,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onJumpTo(itemIndex) }
+                    .padding(vertical = 1.dp),
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
 }
 
 /** Track lists go multi-column on wide screens so more is reachable without scrolling. */
 @Composable
-private fun TrackList(tracks: List<Track>, isWide: Boolean, onPlay: (Int) -> Unit) {
-    LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LIST_COLUMN_MIN_WIDTH)) {
-        gridItemsIndexed(tracks) { index, track -> TrackRow(track) { onPlay(index) } }
+private fun TrackList(
+    tracks: List<Track>,
+    isWide: Boolean,
+    sortKeyOf: (Track) -> String = { it.artist },
+    onPlay: (Int) -> Unit,
+) {
+    val gridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
+    val index = remember(tracks) { AlphabetIndex.buildIndex(tracks.map(sortKeyOf)) }
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = LIST_COLUMN_MIN_WIDTH),
+            state = gridState,
+            modifier = Modifier.weight(1f),
+        ) {
+            gridItemsIndexed(tracks) { itemIndex, track -> TrackRow(track) { onPlay(itemIndex) } }
+        }
+        AlphabetRail(
+            index = index,
+            onJumpTo = { scope.launch { gridState.scrollToItem(it) } },
+        )
     }
 }
 
