@@ -21,11 +21,17 @@ app's own diagnostics screen:
 
 Consequences that are easy to get wrong:
 
-- **The bundled `ATOTO_S8` AVD is wrong** — it is 1024x600 / API 36, matching neither. Don't trust
-  it. Override a running emulator instead:
+- **Use the `ATOTO_S8_A10` AVD.** It is API 29 at 1280x720 / density 160 natively — the unit's real
+  numbers, no overrides. The older bundled **`ATOTO_S8` AVD is wrong** (1024x600 / API 36, matching
+  neither); if you are stuck on it, override the running emulator instead:
   ```bash
   adb shell wm size 1280x720 && adb shell wm density 160
   ```
+  `ATOTO_S8_A10` is a stock AOSP Android 10 image
+  (`Android/sdk_phone_x86_64/generic_x86_64:10/QSR1.210820.001`), **not** ATOTO's firmware. It
+  matches the *platform*, so API-29 behaviour and dp math are trustworthy. It says nothing about
+  the AICE skin, the SAF picker's view of USB, or the audio HAL — those are vendor layers and only
+  the car can answer them.
 - **Density 1.0 is a trap.** The panel is ~210 ppi but Android reports 160, so every dp renders
   *physically smaller* than the same dp on a phone. The platform's 48dp minimum touch target lands
   under 6mm. Rows are 76dp and transport buttons 72dp for this reason — don't "tidy" them smaller.
@@ -117,8 +123,19 @@ Screenshots and unit tests each caught things the other couldn't:
   FileProvider `content://` URI **and** artwork bytes, because the URI alone is not readable by
   another process without a grant.
 
-Verify on the ATOTO geometry, not the AVD default. Full suite: **63 tests**, run with
-`./gradlew :app:testDebugUnitTest :engine:testDebugUnitTest`.
+Verify on the ATOTO geometry, not the AVD default. Full suite: **63 unit tests**, run with
+`./gradlew :app:testDebugUnitTest :engine:testDebugUnitTest`, plus **6 instrumented migration
+tests** needing a running emulator:
+
+```bash
+JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:connectedDebugAndroidTest
+```
+
+The migration tests were themselves checked by breaking the migration on purpose and confirming
+they failed. Worth knowing which check catches what: dropping the `ON DELETE CASCADE` failed four
+tests, because `runMigrationsAndValidate` compares foreign keys. But copying the tracks table
+*without* `metadataInferred` produced a byte-identical schema and was caught only by the assertion
+that reads the value back. Schema validation alone would have shipped that data loss.
 
 Build:
 ```bash
@@ -145,8 +162,18 @@ branch. Listen before merging.
 
 1. **Answer the SAF/USB question** — blocks the most.
 2. **Listen to the crossfade branch**, then merge or tune.
-3. No instrumented tests exist; the Room migrations (now at v4) are only verified by hand. The 3→4
-   migration rebuilds two tables and deserves an automated test.
+3. ~~Room migration tests~~ — **done**. `LibraryMigrationTest` covers 1→2, 2→3, 3→4 and the whole
+   1→4 journey, asserting both schema and surviving rows. Two things to know:
+   - `exportSchema` is now on and `app/schemas/*.json` is **committed on purpose** — those files
+     *are* the old databases the tests build. Versions 1–3 were recovered by building the commit
+     that shipped each one (`78b85bf`, `cd8fbf8`, `f8dfc19`), so they're the real schemas, not
+     hand-written guesses. Never edit a schema file for a version that has shipped.
+   - They run on **both API 29 and API 36**, and that pairing is deliberate rather than thorough
+     for its own sake. The API 29 image carries **SQLite 3.22.0**, API 36 a much newer one, so the
+     two runs straddle **SQLite 3.25** — the release where `ALTER TABLE ... RENAME` started
+     rewriting foreign-key references in *other* tables. `MIGRATION_3_4` renames two tables, so
+     that was the one plausible way it could behave differently in the car than on a desk. It
+     doesn't; both sides agree.
 4. Sleep timer, tag editor, synced lyrics, widgets/skins — real Poweramp features, lower value here.
 5. Android Auto and Chromecast are **deliberately deprioritized** — on a device that *is* the head
    unit they buy little.
