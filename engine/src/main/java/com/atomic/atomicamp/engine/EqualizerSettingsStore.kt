@@ -21,6 +21,14 @@ internal class EqualizerSettingsStore(context: Context) {
         const val KEY_PREAMP = "preamp_db"
         const val KEY_PRESET = "preset_name"
         const val KEY_BAND_PREFIX = "band_"
+        const val KEY_CROSSFADE_MS = "crossfade_ms"
+    }
+
+    /** Overlap between tracks in milliseconds; 0 means crossfade is off. */
+    val crossfadeMs: Int get() = prefs.getInt(KEY_CROSSFADE_MS, 0)
+
+    fun saveCrossfadeMs(value: Int) {
+        prefs.edit().putInt(KEY_CROSSFADE_MS, value.coerceIn(0, 12_000)).apply()
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)

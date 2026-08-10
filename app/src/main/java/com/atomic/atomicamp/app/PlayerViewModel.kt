@@ -52,6 +52,8 @@ data class PlayerUiState(
     val preampDb: Float = 0f,
     val bandGainsDb: FloatArray = FloatArray(GraphicEqualizerAudioProcessor.BAND_COUNT),
     val presetName: String = EqPresets.FLAT.name,
+    /** Overlap between tracks in ms; 0 is off. */
+    val crossfadeMs: Int = 0,
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -172,6 +174,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     eqEnabled = extras.getBoolean(PlaybackService.EXTRA_ENABLED, true),
                     presetName = extras.getString(PlaybackService.EXTRA_PRESET_NAME)
                         ?: EqPresets.FLAT.name,
+                    crossfadeMs = extras.getInt(PlaybackService.EXTRA_CROSSFADE_MS),
                 )
             },
             MoreExecutors.directExecutor(),
@@ -397,6 +400,13 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val args = Bundle().apply { putFloat(PlaybackService.EXTRA_GAIN_DB, gainDb) }
         c.sendCustomCommand(SessionCommand(PlaybackService.COMMAND_SET_PREAMP, Bundle.EMPTY), args)
         _uiState.value = _uiState.value.copy(preampDb = gainDb)
+    }
+
+    fun setCrossfade(ms: Int) {
+        val c = controller ?: return
+        val args = Bundle().apply { putInt(PlaybackService.EXTRA_CROSSFADE_MS, ms) }
+        c.sendCustomCommand(SessionCommand(PlaybackService.COMMAND_SET_CROSSFADE, Bundle.EMPTY), args)
+        _uiState.value = _uiState.value.copy(crossfadeMs = ms)
     }
 
     fun setEqEnabled(enabled: Boolean) {

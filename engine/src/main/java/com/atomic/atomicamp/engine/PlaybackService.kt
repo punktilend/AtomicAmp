@@ -33,6 +33,8 @@ class PlaybackService : MediaSessionService() {
         const val COMMAND_SET_EQ_ENABLED = "atomicamp.SET_EQ_ENABLED"
         const val COMMAND_APPLY_PRESET = "atomicamp.APPLY_PRESET"
         const val COMMAND_GET_EQ_STATE = "atomicamp.GET_EQ_STATE"
+        const val COMMAND_SET_CROSSFADE = "atomicamp.SET_CROSSFADE"
+        const val EXTRA_CROSSFADE_MS = "crossfade_ms"
         const val EXTRA_BAND_INDEX = "band_index"
         const val EXTRA_GAIN_DB = "gain_db"
         const val EXTRA_ENABLED = "enabled"
@@ -49,6 +51,7 @@ class PlaybackService : MediaSessionService() {
     private lateinit var mediaSession: MediaSession
     private lateinit var settingsStore: EqualizerSettingsStore
     private lateinit var playbackStateStore: PlaybackStateStore
+    private lateinit var crossfade: CrossfadeController
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -92,6 +95,11 @@ class PlaybackService : MediaSessionService() {
         playbackStateStore.restoreInto(player)
         player.addListener(PlaybackPersistenceListener())
 
+        crossfade = CrossfadeController(this, player, equalizer, mainHandler).apply {
+            crossfadeMs = settingsStore.crossfadeMs
+            start()
+        }
+
         // The session wraps the fading player, so notification and steering-wheel controls fade
         // too -- not just this app's own transport buttons.
         mediaSession = MediaSession.Builder(this, FadingPlayer(player, fade, mainHandler))
@@ -133,12 +141,14 @@ class PlaybackService : MediaSessionService() {
         putFloat(EXTRA_GAIN_DB, equalizer.getPreampGain())
         putBoolean(EXTRA_ENABLED, equalizer.isEqEnabled())
         putString(EXTRA_PRESET_NAME, settingsStore.presetName)
+        putInt(EXTRA_CROSSFADE_MS, crossfade.crossfadeMs)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession =
         mediaSession
 
     override fun onDestroy() {
+        crossfade.release()
         mainHandler.removeCallbacks(savePositionRunnable)
         // Last chance to checkpoint: after release() the player reports no queue and no position.
         playbackStateStore.save(player)
@@ -168,6 +178,7 @@ class PlaybackService : MediaSessionService() {
                 .add(SessionCommand(COMMAND_SET_EQ_ENABLED, Bundle.EMPTY))
                 .add(SessionCommand(COMMAND_APPLY_PRESET, Bundle.EMPTY))
                 .add(SessionCommand(COMMAND_GET_EQ_STATE, Bundle.EMPTY))
+                .add(SessionCommand(COMMAND_SET_CROSSFADE, Bundle.EMPTY))
                 .build()
             return MediaSession.ConnectionResult.accept(
                 availableSessionCommands,
@@ -210,6 +221,12 @@ class PlaybackService : MediaSessionService() {
                         equalizer.setBandGains(preset.gainsDb)
                         settingsStore.save(equalizer, preset.name)
                     }
+                }
+
+                COMMAND_SET_CROSSFADE -> {
+                    val ms = args.getInt(EXTRA_CROSSFADE_MS)
+                    crossfade.crossfadeMs = ms
+                    settingsStore.saveCrossfadeMs(ms)
                 }
 
                 COMMAND_GET_EQ_STATE -> {

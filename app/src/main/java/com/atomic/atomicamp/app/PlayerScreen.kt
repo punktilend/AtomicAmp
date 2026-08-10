@@ -168,10 +168,12 @@ fun PlayerScreen(
                                 preampDb = uiState.preampDb,
                                 bandGainsDb = uiState.bandGainsDb,
                                 presetName = uiState.presetName,
+                                crossfadeMs = uiState.crossfadeMs,
                                 onEqEnabledChange = viewModel::setEqEnabled,
                                 onPreampChange = viewModel::setPreamp,
                                 onBandChange = viewModel::setBandGain,
                                 onPresetSelected = viewModel::applyPreset,
+                                onCrossfadeChange = viewModel::setCrossfade,
                                 vertical = true,
                                 modifier = Modifier.weight(1f),
                             )
@@ -207,10 +209,12 @@ fun PlayerScreen(
                     preampDb = uiState.preampDb,
                     bandGainsDb = uiState.bandGainsDb,
                     presetName = uiState.presetName,
+                    crossfadeMs = uiState.crossfadeMs,
                     onEqEnabledChange = viewModel::setEqEnabled,
                     onPreampChange = viewModel::setPreamp,
                     onBandChange = viewModel::setBandGain,
                     onPresetSelected = viewModel::applyPreset,
+                    onCrossfadeChange = viewModel::setCrossfade,
                     vertical = false,
                 )
                 Spacer(Modifier.height(16.dp))
@@ -484,10 +488,12 @@ private fun EqualizerPanel(
     preampDb: Float,
     bandGainsDb: FloatArray,
     presetName: String,
+    crossfadeMs: Int,
     onEqEnabledChange: (Boolean) -> Unit,
     onPreampChange: (Float) -> Unit,
     onBandChange: (Int, Float) -> Unit,
     onPresetSelected: (EqPreset) -> Unit,
+    onCrossfadeChange: (Int) -> Unit,
     vertical: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -504,6 +510,7 @@ private fun EqualizerPanel(
         }
 
         PresetChips(presetName = presetName, onPresetSelected = onPresetSelected)
+        CrossfadeChips(crossfadeMs = crossfadeMs, onSelect = onCrossfadeChange)
         Spacer(Modifier.height(4.dp))
 
         if (vertical) {
@@ -584,6 +591,29 @@ private fun PresetChips(presetName: String, onPresetSelected: (EqPreset) -> Unit
                 selected = preset.name == presetName,
                 onClick = { onPresetSelected(preset) },
                 label = { Text(preset.name) },
+            )
+        }
+    }
+}
+
+/**
+ * Crossfade length. Fixed steps rather than a slider: this is set once to taste, not adjusted
+ * while driving, and discrete values are far easier to hit than a continuous control.
+ */
+@Composable
+private fun CrossfadeChips(crossfadeMs: Int, onSelect: (Int) -> Unit) {
+    val options = listOf(0 to "No fade", 2000 to "2s", 4000 to "4s", 8000 to "8s")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Crossfade", style = MaterialTheme.typography.labelSmall)
+        options.forEach { (ms, label) ->
+            FilterChip(
+                selected = crossfadeMs == ms,
+                onClick = { onSelect(ms) },
+                label = { Text(label) },
             )
         }
     }
