@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
@@ -71,6 +72,14 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                 currentIndex = controller?.currentMediaItemIndex ?: -1,
                 durationMs = controller?.duration?.coerceAtLeast(0) ?: 0L,
             )
+        }
+
+        /**
+         * The queue itself changed — items added or removed, or shuffle reordering it. Rebuild
+         * from the player rather than trying to mirror each mutation locally and drift out of sync.
+         */
+        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+            syncQueueFromEngine()
         }
     }
 
@@ -244,6 +253,21 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
 
     fun skipPrevious() {
         controller?.seekToPreviousMediaItem()
+    }
+
+    /** Jumps straight to a queue entry, e.g. from the queue list. */
+    fun playQueueItem(index: Int) {
+        val c = controller ?: return
+        if (index !in 0 until c.mediaItemCount) return
+        c.seekTo(index, 0L)
+        c.play()
+    }
+
+    fun removeFromQueue(index: Int) {
+        val c = controller ?: return
+        if (index !in 0 until c.mediaItemCount) return
+        c.removeMediaItem(index)
+        // onTimelineChanged rebuilds the visible queue.
     }
 
     fun toggleShuffle() {

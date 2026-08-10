@@ -21,9 +21,10 @@ off the hardware itself:
 That drives real layout constraints, and the UI adapts to measured size rather than assuming a
 portrait phone:
 
-- **Now Playing** goes two-pane when wide: album art + transport on the left, the equalizer as a
-  row of vertical faders on the right. Stacking eleven horizontal sliders vertically — the obvious
-  phone layout — does not fit in 660dp.
+- **Now Playing** goes two-pane when wide: album art + transport on the left, and a right pane
+  that toggles between the equalizer and the play queue. Stacking eleven horizontal sliders
+  vertically — the obvious phone layout — does not fit in 660dp, and neither does showing faders
+  and a queue at once, hence the toggle rather than a third column.
 - **Library** lists use `GridCells.Adaptive`, giving 3 columns here, 2 at 1024dp, 1 in phone
   portrait, with no per-device column counts hardcoded.
 - Touch targets are deliberately larger than phone intuition suggests: **density 1.0 is
