@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +37,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -161,9 +165,131 @@ fun LibraryScreen(
                 LibraryTab.ALBUMS -> AlbumsTab(libraryViewModel, playerViewModel, onNavigateToNowPlaying, isWide)
                 LibraryTab.ARTISTS -> ArtistsTab(libraryViewModel, playerViewModel, onNavigateToNowPlaying, isWide)
                 LibraryTab.FOLDERS -> FoldersTab(libraryViewModel, playerViewModel, onNavigateToNowPlaying, isWide)
+                LibraryTab.PLAYLISTS -> PlaylistsTab(libraryViewModel, playerViewModel, onNavigateToNowPlaying, isWide)
             }
         }
     }
+}
+
+@Composable
+private fun PlaylistsTab(
+    vm: LibraryViewModel,
+    player: PlayerViewModel,
+    onPlay: () -> Unit,
+    isWide: Boolean,
+) {
+    val selected by vm.selectedPlaylist.collectAsState()
+
+    if (selected != null) {
+        val tracks by vm.playlistTracks.collectAsState()
+        val playlist = selected!!
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(onClick = { vm.closePlaylist() }) { Text("Back") }
+                Text(playlist.name, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                if (tracks.isNotEmpty()) {
+                    Button(onClick = {
+                        player.playFromLibrary(tracks, 0)
+                        onPlay()
+                    }) { Text("Play all") }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+
+            if (tracks.isEmpty()) {
+                // Entries can outlive their media -- an empty list here may mean the stick is out,
+                // not that the playlist is empty.
+                EmptyHint("Nothing playable here. If this playlist isn't empty, its media may be unavailable.")
+                return@Column
+            }
+
+            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LIST_COLUMN_MIN_WIDTH)) {
+                gridItemsIndexed(tracks) { index, track ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            TrackRow(track) {
+                                player.playFromLibrary(tracks, index)
+                                onPlay()
+                            }
+                        }
+                        TextButton(onClick = { vm.removeFromPlaylist(playlist.id, track.uri) }) {
+                            Text("Remove")
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
+
+    val playlists by vm.playlists.collectAsState()
+    var showCreate by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Button(onClick = { showCreate = true }) { Text("New playlist") }
+        Spacer(Modifier.height(8.dp))
+
+        if (playlists.isEmpty()) {
+            EmptyHint("No playlists yet.")
+        } else {
+            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LIST_COLUMN_MIN_WIDTH)) {
+                gridItems(playlists) { playlist ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { vm.openPlaylist(playlist) }
+                            .heightIn(min = ROW_MIN_HEIGHT)
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                pluralize(playlist.trackCount, "track"),
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        TextButton(onClick = { vm.deletePlaylist(playlist.id) }) { Text("Delete") }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showCreate) {
+        NewPlaylistDialog(
+            onDismiss = { showCreate = false },
+            onCreate = { name ->
+                vm.createPlaylist(name)
+                showCreate = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun NewPlaylistDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New playlist") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                placeholder = { Text("Playlist name") },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onCreate(name) }, enabled = name.isNotBlank()) { Text("Create") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

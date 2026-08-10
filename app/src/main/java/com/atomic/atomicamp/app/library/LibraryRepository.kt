@@ -7,6 +7,8 @@ import com.atomic.atomicamp.app.library.data.AlbumSummary
 import com.atomic.atomicamp.app.library.data.ArtistSummary
 import com.atomic.atomicamp.app.library.data.LibraryDatabase
 import com.atomic.atomicamp.app.library.data.MusicFolder
+import com.atomic.atomicamp.app.library.data.Playlist
+import com.atomic.atomicamp.app.library.data.PlaylistSummary
 import com.atomic.atomicamp.app.library.data.Track
 import com.atomic.atomicamp.app.library.scan.LibraryScanner
 import com.atomic.atomicamp.app.library.scan.ScanProgress
@@ -23,6 +25,7 @@ class LibraryRepository(context: Context) {
     private val db = LibraryDatabase.get(appContext)
     private val trackDao = db.trackDao()
     private val folderDao = db.musicFolderDao()
+    private val playlistDao = db.playlistDao()
     private val scanner = LibraryScanner(appContext, trackDao)
 
     val folders: Flow<List<MusicFolder>> = folderDao.all()
@@ -44,6 +47,33 @@ class LibraryRepository(context: Context) {
     fun search(query: String, limit: Int = SEARCH_RESULT_LIMIT): Flow<List<Track>> {
         val escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         return trackDao.search("%$escaped%", limit)
+    }
+
+    // -- Playlists --
+
+    val playlists: Flow<List<PlaylistSummary>> = playlistDao.playlists()
+
+    fun tracksInPlaylist(playlistId: Long): Flow<List<Track>> = playlistDao.tracksInPlaylist(playlistId)
+
+    suspend fun createPlaylist(name: String, trackUris: List<String> = emptyList()): Long =
+        withContext(Dispatchers.IO) {
+            val id = playlistDao.insertPlaylist(
+                Playlist(name = name.trim(), dateCreatedMs = System.currentTimeMillis()),
+            )
+            if (trackUris.isNotEmpty()) playlistDao.appendTracks(id, trackUris)
+            id
+        }
+
+    suspend fun deletePlaylist(playlistId: Long) = withContext(Dispatchers.IO) {
+        playlistDao.deletePlaylist(playlistId)
+    }
+
+    suspend fun addToPlaylist(playlistId: Long, trackUris: List<String>) = withContext(Dispatchers.IO) {
+        playlistDao.appendTracks(playlistId, trackUris)
+    }
+
+    suspend fun removeFromPlaylist(playlistId: Long, trackUri: String) = withContext(Dispatchers.IO) {
+        playlistDao.removeTrackAndCompact(playlistId, trackUri)
     }
 
     private companion object {

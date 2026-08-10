@@ -8,6 +8,7 @@ import com.atomic.atomicamp.app.library.LibraryRepository
 import com.atomic.atomicamp.app.library.data.AlbumSummary
 import com.atomic.atomicamp.app.library.data.ArtistSummary
 import com.atomic.atomicamp.app.library.data.MusicFolder
+import com.atomic.atomicamp.app.library.data.PlaylistSummary
 import com.atomic.atomicamp.app.library.data.Track
 import com.atomic.atomicamp.app.library.scan.ScanProgress
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,7 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class LibraryTab { SONGS, ALBUMS, ARTISTS, FOLDERS }
+enum class LibraryTab { SONGS, ALBUMS, ARTISTS, FOLDERS, PLAYLISTS }
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class LibraryViewModel(application: Application) : AndroidViewModel(application) {
@@ -99,6 +100,44 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun selectTab(newTab: LibraryTab) {
         _tab.value = newTab
+    }
+
+    // -- Playlists --
+
+    val playlists: StateFlow<List<PlaylistSummary>> =
+        repository.playlists.stateIn(viewModelScope, whileUsed, emptyList())
+
+    private val _selectedPlaylist = MutableStateFlow<PlaylistSummary?>(null)
+    val selectedPlaylist: StateFlow<PlaylistSummary?> = _selectedPlaylist.asStateFlow()
+
+    val playlistTracks: StateFlow<List<Track>> = _selectedPlaylist
+        .flatMapLatest { playlist ->
+            if (playlist == null) flowOf(emptyList()) else repository.tracksInPlaylist(playlist.id)
+        }
+        .stateIn(viewModelScope, whileUsed, emptyList())
+
+    fun openPlaylist(playlist: PlaylistSummary) {
+        _selectedPlaylist.value = playlist
+    }
+
+    fun closePlaylist() {
+        _selectedPlaylist.value = null
+    }
+
+    fun createPlaylist(name: String, trackUris: List<String> = emptyList()) {
+        if (name.isBlank()) return
+        viewModelScope.launch { repository.createPlaylist(name, trackUris) }
+    }
+
+    fun deletePlaylist(playlistId: Long) {
+        viewModelScope.launch {
+            repository.deletePlaylist(playlistId)
+            if (_selectedPlaylist.value?.id == playlistId) _selectedPlaylist.value = null
+        }
+    }
+
+    fun removeFromPlaylist(playlistId: Long, trackUri: String) {
+        viewModelScope.launch { repository.removeFromPlaylist(playlistId, trackUri) }
     }
 
     fun setSearchQuery(query: String) {

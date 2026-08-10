@@ -25,11 +25,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -71,7 +73,11 @@ private val TRANSPORT_BUTTON_HEIGHT = 72.dp
 private val QUEUE_ROW_MIN_HEIGHT = 56.dp
 
 @Composable
-fun PlayerScreen(viewModel: PlayerViewModel, onNavigateToLibrary: () -> Unit = {}) {
+fun PlayerScreen(
+    viewModel: PlayerViewModel,
+    onNavigateToLibrary: () -> Unit = {},
+    onSaveQueueAsPlaylist: (name: String, trackUris: List<String>) -> Unit = { _, _ -> },
+) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
@@ -175,6 +181,7 @@ fun PlayerScreen(viewModel: PlayerViewModel, onNavigateToLibrary: () -> Unit = {
                                 currentIndex = uiState.currentIndex,
                                 onPlayIndex = viewModel::playQueueItem,
                                 onRemoveIndex = viewModel::removeFromQueue,
+                                onSaveAsPlaylist = onSaveQueueAsPlaylist,
                                 modifier = Modifier.weight(1f),
                             )
                         }
@@ -259,6 +266,7 @@ private fun QueuePanel(
     currentIndex: Int,
     onPlayIndex: (Int) -> Unit,
     onRemoveIndex: (Int) -> Unit,
+    onSaveAsPlaylist: (name: String, trackUris: List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (queue.isEmpty()) {
@@ -266,6 +274,26 @@ private fun QueuePanel(
             Text("Queue is empty.", style = MaterialTheme.typography.bodyMedium)
         }
         return
+    }
+
+    var showSave by remember { mutableStateOf(false) }
+
+    // Building a queue by browsing and then naming it beats adding tracks one at a time, which is
+    // the last thing you want to be doing at the wheel.
+    Button(
+        onClick = { showSave = true },
+        modifier = Modifier.fillMaxWidth().height(44.dp),
+    ) { Text("Save queue as playlist") }
+    Spacer(Modifier.height(8.dp))
+
+    if (showSave) {
+        SaveQueueDialog(
+            onDismiss = { showSave = false },
+            onSave = { name ->
+                onSaveAsPlaylist(name, queue.map { it.uri.toString() })
+                showSave = false
+            },
+        )
     }
 
     LazyColumn(modifier = modifier.fillMaxWidth()) {
@@ -303,6 +331,27 @@ private fun QueuePanel(
             }
         }
     }
+}
+
+@Composable
+private fun SaveQueueDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save queue as playlist") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                singleLine = true,
+                placeholder = { Text("Playlist name") },
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(name) }, enabled = name.isNotBlank()) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

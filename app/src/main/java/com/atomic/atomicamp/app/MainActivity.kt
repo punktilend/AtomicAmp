@@ -27,6 +27,10 @@ class MainActivity : ComponentActivity() {
 
     private val playerViewModel: PlayerViewModel by viewModels()
 
+    // Activity-scoped so Now Playing can save the queue as a playlist against the same library
+    // state the Library destination is showing.
+    private val libraryViewModel: LibraryViewModel by viewModels()
+
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -43,7 +47,6 @@ class MainActivity : ComponentActivity() {
                     val navController = rememberNavController()
                     NavHost(navController = navController, startDestination = ROUTE_LIBRARY) {
                         composable(ROUTE_LIBRARY) {
-                            val libraryViewModel: LibraryViewModel = viewModel()
                             LibraryScreen(
                                 libraryViewModel = libraryViewModel,
                                 playerViewModel = playerViewModel,
@@ -55,6 +58,9 @@ class MainActivity : ComponentActivity() {
                             PlayerScreen(
                                 viewModel = playerViewModel,
                                 onNavigateToLibrary = { navController.popBackStack() },
+                                onSaveQueueAsPlaylist = { name, uris ->
+                                    libraryViewModel.createPlaylist(name, uris)
+                                },
                             )
                         }
                         composable(ROUTE_DIAGNOSTICS) {
