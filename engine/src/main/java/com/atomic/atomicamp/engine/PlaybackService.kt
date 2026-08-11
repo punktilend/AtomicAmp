@@ -64,7 +64,7 @@ class PlaybackService : MediaSessionService() {
      */
     private val savePositionRunnable = object : Runnable {
         override fun run() {
-            playbackStateStore.save(player)
+            playbackStateStore.savePosition(player)
             mainHandler.postDelayed(this, POSITION_SAVE_INTERVAL_MS)
         }
     }

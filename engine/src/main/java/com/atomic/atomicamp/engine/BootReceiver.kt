@@ -59,6 +59,18 @@ class BootReceiver : BroadcastReceiver() {
                 // An empty queue means there is nothing to resume -- a first install, or a
                 // library that was never scanned. Starting a silent service helps nobody.
                 if (controller.mediaItemCount > 0) {
+                    // Re-apply the checkpoint before playing.
+                    //
+                    // PlaybackService already restores it in onCreate, and that restore is exact
+                    // when the process is merely killed and relaunched -- measured: 4914 ms saved,
+                    // 4914 ms restored. Coming back from an actual reboot it is not: the right
+                    // track resumes at zero even though the checkpoint on disk was ten seconds in.
+                    // Something on the cold-boot path loses the start position, so the resume does
+                    // not trust it and seeks itself.
+                    val checkpoint = PlaybackStateStore(appContext).savedPosition()
+                    if (checkpoint != null && checkpoint.positionMs > 0) {
+                        controller.seekTo(checkpoint.index, checkpoint.positionMs)
+                    }
                     controller.prepare()
                     controller.play()
                 }

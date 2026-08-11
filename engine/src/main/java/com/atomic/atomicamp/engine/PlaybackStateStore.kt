@@ -88,6 +88,41 @@ internal class PlaybackStateStore(context: Context) {
     }
 
     /**
+     * Checkpoints only *where* playback is, and does it synchronously.
+     *
+     * Two reasons this is not just [save]:
+     *
+     * Durability. `apply()` returns before the write reaches disk, which is fine for a graceful
+     * exit and useless against an ignition-off, because that cuts power. Measured: after a reboot
+     * the app resumed the right track at the beginning, having computed a five-second checkpoint
+     * that never made it to storage. `commit()` blocks until it is written, so a checkpoint that
+     * happened is a checkpoint that survives, and the worst case becomes losing five seconds
+     * rather than the whole position.
+     *
+     * Cost. [save] re-serialises the entire queue to JSON. On a timer, against a library of
+     * thousands of tracks, that is a large write every five seconds to record a number that fits
+     * in a long. The queue is already saved by the events that change it.
+     */
+    /** Where playback was, as last checkpointed, or null when nothing is saved. */
+    fun savedPosition(): SavedPosition? {
+        if (prefs.getString(KEY_QUEUE, null) == null) return null
+        return SavedPosition(
+            index = prefs.getInt(KEY_INDEX, 0),
+            positionMs = prefs.getLong(KEY_POSITION_MS, 0L),
+        )
+    }
+
+    data class SavedPosition(val index: Int, val positionMs: Long)
+
+    fun savePosition(player: Player) {
+        if (player.mediaItemCount == 0) return
+        prefs.edit()
+            .putInt(KEY_INDEX, player.currentMediaItemIndex)
+            .putLong(KEY_POSITION_MS, player.currentPosition.coerceAtLeast(0L))
+            .commit()
+    }
+
+    /**
      * Restores the saved queue into [player], seeked to where it stopped but left **paused** --
      * powering on the head unit should not start blasting audio on its own.
      *
