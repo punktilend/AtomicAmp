@@ -39,6 +39,8 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         /** Longest edge kept for cached art. Ample for a thumbnail or the Now Playing pane. */
         const val MAX_ART_EDGE_PX = 512
         const val ART_JPEG_QUALITY = 85
+
+        const val SCHEME_FILE = "file"
     }
 
     /**
@@ -50,17 +52,88 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
      */
     suspend fun scan(treeUri: Uri, onProgress: (ScanProgress) -> Unit = {}) {
         val startedAtMs = System.currentTimeMillis()
-        val rootDocId = DocumentsContract.getTreeDocumentId(treeUri)
         val batch = mutableListOf<Track>()
         val seenIds = mutableSetOf<String>()
         val counter = ScanCounter(startedAtMs, onProgress)
 
-        walk(treeUri, rootDocId, relativeDir = "", batch, seenIds, counter)
+        // The ATOTO's AICE firmware ships no DocumentsUI at all -- measured on the unit, where
+        // OPEN_DOCUMENT_TREE resolves to nothing -- so on that device SAF is not a slow path but
+        // an absent one. A file:// root walks the filesystem directly instead. Everything past
+        // the walk is shared: tags, art and cue sheets are read through Uri either way.
+        if (treeUri.scheme == SCHEME_FILE) {
+            treeUri.path?.let { path ->
+                walkFiles(File(path), relativeDir = "", treeUri, batch, seenIds, counter)
+            }
+        } else {
+            val rootDocId = DocumentsContract.getTreeDocumentId(treeUri)
+            walk(treeUri, rootDocId, relativeDir = "", batch, seenIds, counter)
+        }
+
         if (batch.isNotEmpty()) {
             trackDao.upsert(batch.toList())
         }
         pruneMissing(treeUri.toString(), seenIds)
         counter.emit(force = true)
+    }
+
+    /** Filesystem twin of [walk], for roots reached without SAF. */
+    private suspend fun walkFiles(
+        dir: File,
+        relativeDir: String,
+        treeUri: Uri,
+        batch: MutableList<Track>,
+        seenIds: MutableSet<String>,
+        counter: ScanCounter,
+    ) {
+        // Sorted so a scan is reproducible; listFiles order is filesystem-dependent.
+        val children = runCatching { dir.listFiles() }.getOrNull()?.sortedBy { it.name } ?: return
+
+        val folderArtUri = children.firstOrNull { child ->
+            !child.isDirectory &&
+                child.name.substringBeforeLast('.').lowercase() in COVER_BASE_NAMES &&
+                child.name.substringAfterLast('.', "").lowercase() in IMAGE_EXTENSIONS
+        }?.let { Uri.fromFile(it) }
+
+        val cueSplit = readSingleFileCueFrom(children)
+
+        for (child in children) {
+            if (child.isDirectory) {
+                val childRelativeDir =
+                    if (relativeDir.isEmpty()) child.name else "$relativeDir/${child.name}"
+                walkFiles(child, childRelativeDir, treeUri, batch, seenIds, counter)
+            } else if (child.name.substringAfterLast('.', "").lowercase() in AUDIO_EXTENSIONS) {
+                val fileUri = Uri.fromFile(child)
+
+                val cueTracks = if (cueSplit != null && cueSplit.matches(child.name)) {
+                    extractCueTracks(fileUri, treeUri, relativeDir, cueSplit.sheet, folderArtUri)
+                } else {
+                    null
+                }
+
+                if (cueTracks != null) {
+                    cueTracks.forEach { seenIds += it.id }
+                    batch += cueTracks
+                } else {
+                    seenIds += Track.idFor(fileUri.toString(), null)
+                    extractTrack(fileUri, treeUri, relativeDir, child.name, folderArtUri)?.let { batch += it }
+                }
+                counter.increment()
+                if (batch.size >= BATCH_SIZE) {
+                    trackDao.upsert(batch.toList())
+                    batch.clear()
+                }
+            }
+        }
+    }
+
+    /** Filesystem twin of [readSingleFileCue]; same multi-FILE rule applies. */
+    private fun readSingleFileCueFrom(children: List<File>): CueSplit? {
+        val cue = children.firstOrNull {
+            !it.isDirectory && it.name.substringAfterLast('.', "").lowercase() == "cue"
+        } ?: return null
+        val text = runCatching { cue.readText() }.getOrNull() ?: return null
+        val sheet = CueParser.parse(text)
+        return if (sheet.isSingleFile && sheet.tracks.isNotEmpty()) CueSplit(sheet) else null
     }
 
     /** Throttles progress emissions so a fast scan doesn't spend its time recomposing the UI. */

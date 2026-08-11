@@ -40,29 +40,46 @@ Consequences that are easy to get wrong:
 - The process is killed at **every ignition-off**, which is why EQ, queue, position, shuffle/repeat
   and leveler state are all persisted and restored.
 
-## 2. Unresolved, and it gates real work
+## 2. Answered: the unit has no SAF at all
 
-**Can the ATOTO's SAF document picker see USB storage?** The entire library is built on SAF folder
-grants, so if the picker can't reach removable media, `LibraryScanner` needs a direct-filesystem
-fallback. Everything else is downstream of this answer.
+This section was the project's central unknown for months. It is settled, and the answer was worse
+than "the picker can't see USB".
 
-**First real datapoint: on the unit, pressing Add folder crashed the app.** The launch was
-unguarded, and `ActivityResultContracts.OpenDocumentTree` throws `ActivityNotFoundException` rather
-than returning null when nothing handles the intent — which is consistent with AICE shipping no
-document picker at all, though a crash alone does not prove that and it has not yet been confirmed
-on the device.
+**`com.android.documentsui` is not installed on the ATOTO.** Not disabled, not hidden — absent.
+Measured on the device via the Diagnostics screen: `OPEN_DOCUMENT_TREE` and `OPEN_DOCUMENT` both
+report `NOTHING HANDLES THIS`, and only `GET_CONTENT` resolves, to Amaze File Manager and Google
+Docs. So **SAF folder grants were never possible on the target device**, and the original library
+design had no way in. Pressing Add folder didn't fail gracefully, it threw
+`ActivityNotFoundException` and killed the app.
 
-So don't re-run the old "does the stick appear in the picker" check first; it may never get as far
-as a picker. Sideload `R:\AtomicAmp-crashfix-2026-08-10.apk` (or later) and read **Info**, which now
-reports it directly:
+What the same screen showed is why this was recoverable:
 
-- `== DOCUMENT PICKER (SAF) ==` — what handles `OPEN_DOCUMENT_TREE`, and whether DocumentsUI is
-  installed, disabled or absent. `NOTHING HANDLES THIS` settles the design question outright.
-- `== DIRECT FILE READ PROBE ==` — audio files reachable per volume with plain `File` calls. This
-  is the evidence about whether a fallback can work *before* one gets written; on the API 29
-  emulator it correctly finds files under `/storage/emulated/0`.
-- `== LAST CRASH ==` — the previous crash's stack trace, since the unit has no other way to report
-  one.
+```
+LittleRed  removable=true primary=false state=mounted
+[1] /storage/USB1/Android/data/com.atomic.atomicamp/files
+/storage/USB1   -> 145 audio file(s), e.g. 01 - Ricky.flac
+/storage/usbdisk -> 145 audio file(s)
+```
+
+Plain `File` access to the mounted stick works, because `requestLegacyExternalStorage` is honoured
+on API 29. So `LibraryScanner` now takes a **`file://` root as well as a SAF tree**, and only the
+directory walk differs — tags, album art and cue sheets are read through `Uri` either way, so both
+paths share all the extraction logic. Since folder identity is just a string in `MusicFolder.uri`,
+storing `file:///storage/USB1/Music` needed **no schema migration**.
+
+Two consequences to keep in mind:
+
+- **A `file://` root has no persistable grant.** Reaching it again after an ignition-off depends on
+  `READ_EXTERNAL_STORAGE`, not on a URI permission — don't "fix" `addFolder` by calling
+  `takePersistableUriPermission` on it, which throws.
+- **`FolderPickerScreen` exists because the device has no picker to borrow.** It lists volume roots
+  derived from `getExternalFilesDirs` rather than by listing `/storage`, because `canRead()` is a
+  false negative on `/storage/emulated` even where its children are readable — the emulator showed
+  an empty list until that was changed.
+
+Both paths are verified. The filesystem path was tested by *disabling* DocumentsUI on the API 29
+emulator, which reproduces the unit's condition exactly: browse, scan, tags, art and playback of a
+24/192 FLAC all work with SAF absent, and re-enabling it puts the system picker back.
 
 **ADB is not available on the unit.** Its AICE UI firmware hides Developer options (the
 build-number tap is inert) and exposes no network ADB — confirmed by scanning ports 1–10000 and the
@@ -203,7 +220,9 @@ ends and starts with `ffmpeg -sseof`/`-t` and strips tags so the queue order is 
 
 ## 8. What's next
 
-1. **Answer the SAF/USB question** — blocks the most.
+1. ~~Answer the SAF/USB question~~ — **answered, see section 2.** The unit ships no document picker,
+   and `LibraryScanner` now walks `file://` roots. What's left is to scan the real 3,350-file
+   library off USB on the unit and see how long it takes and whether it holds up.
 2. **Listen to the crossfade branch**, then merge or tune. Nothing needs building or wiring first —
    section 7 explains the session already waiting on the `ATOTO_S8_A10` emulator.
 3. ~~Room migration tests~~ — **done**. `LibraryMigrationTest` covers 1→2, 2→3, 3→4 and the whole

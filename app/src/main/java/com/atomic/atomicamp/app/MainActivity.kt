@@ -17,12 +17,15 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.atomic.atomicamp.app.diagnostics.CrashLog
 import com.atomic.atomicamp.app.diagnostics.DiagnosticsScreen
+import android.net.Uri
+import com.atomic.atomicamp.app.library.ui.FolderPickerScreen
 import com.atomic.atomicamp.app.library.ui.LibraryScreen
 import com.atomic.atomicamp.app.library.ui.LibraryViewModel
 
 private const val ROUTE_LIBRARY = "library"
 private const val ROUTE_NOW_PLAYING = "nowPlaying"
 private const val ROUTE_DIAGNOSTICS = "diagnostics"
+private const val ROUTE_FOLDER_PICKER = "folderPicker"
 
 class MainActivity : ComponentActivity() {
 
@@ -62,6 +65,16 @@ class MainActivity : ComponentActivity() {
                                 playerViewModel = playerViewModel,
                                 onNavigateToNowPlaying = { navController.navigate(ROUTE_NOW_PLAYING) },
                                 onNavigateToDiagnostics = { navController.navigate(ROUTE_DIAGNOSTICS) },
+                                onNavigateToFolderPicker = { navController.navigate(ROUTE_FOLDER_PICKER) },
+                            )
+                        }
+                        composable(ROUTE_FOLDER_PICKER) {
+                            FolderPickerScreen(
+                                onFolderChosen = { dir ->
+                                    libraryViewModel.addFolder(Uri.fromFile(dir))
+                                    navController.popBackStack()
+                                },
+                                onCancel = { navController.popBackStack() },
                             )
                         }
                         composable(ROUTE_NOW_PLAYING) {

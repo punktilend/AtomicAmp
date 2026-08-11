@@ -28,6 +28,13 @@ object StorageProbe {
     private const val MAX_DEPTH = 4
     private const val MAX_ENTRIES = 4000
 
+    /** Whether SAF folder grants are possible at all here. False on the ATOTO. */
+    fun hasDocumentPicker(context: Context): Boolean = runCatching {
+        context.packageManager
+            .queryIntentActivities(Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), 0)
+            .isNotEmpty()
+    }.getOrDefault(false)
+
     fun documentPickerLines(context: Context): List<String> {
         val actions = listOf(
             Intent.ACTION_OPEN_DOCUMENT_TREE to "OPEN_DOCUMENT_TREE (what Add folder uses)",

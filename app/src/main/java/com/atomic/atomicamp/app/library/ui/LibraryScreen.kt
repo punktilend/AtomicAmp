@@ -54,7 +54,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.compose.ui.platform.LocalContext
 import com.atomic.atomicamp.app.PlayerViewModel
+import com.atomic.atomicamp.app.diagnostics.StorageProbe
 import com.atomic.atomicamp.app.library.data.AlbumSummary
 import com.atomic.atomicamp.app.library.data.Track
 import java.io.File
@@ -84,7 +86,9 @@ fun LibraryScreen(
     playerViewModel: PlayerViewModel,
     onNavigateToNowPlaying: () -> Unit,
     onNavigateToDiagnostics: () -> Unit = {},
+    onNavigateToFolderPicker: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     val tab by libraryViewModel.tab.collectAsState()
     val isScanning by libraryViewModel.isScanning.collectAsState()
     val scanProgress by libraryViewModel.scanProgress.collectAsState()
@@ -117,16 +121,21 @@ fun LibraryScreen(
                     Button(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
                     Button(
                         onClick = {
-                            addFolderError = try {
-                                addFolderLauncher.launch(null)
-                                null
-                            } catch (e: ActivityNotFoundException) {
-                                "This device has no document picker (nothing handles " +
-                                    "ACTION_OPEN_DOCUMENT_TREE), so folders cannot be granted this " +
-                                    "way. Open Info for the full report."
-                            } catch (e: Exception) {
-                                "Could not open the document picker: ${e.javaClass.simpleName}: " +
-                                    "${e.message}. Open Info for the full report."
+                            // Prefer SAF where it exists: its grant survives reboots on its own.
+                            // Where it doesn't, browsing the filesystem is the only way in.
+                            if (!StorageProbe.hasDocumentPicker(context)) {
+                                onNavigateToFolderPicker()
+                            } else {
+                                addFolderError = try {
+                                    addFolderLauncher.launch(null)
+                                    null
+                                } catch (e: ActivityNotFoundException) {
+                                    onNavigateToFolderPicker()
+                                    null
+                                } catch (e: Exception) {
+                                    "Could not open the document picker: ${e.javaClass.simpleName}: " +
+                                        "${e.message}. Open Info for the full report."
+                                }
                             }
                         },
                     ) { Text("Add folder") }
