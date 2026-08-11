@@ -38,7 +38,15 @@ Consequences that are easy to get wrong:
 - **API 29 ceiling.** `StorageVolume.getDirectory()` (30) and `POST_NOTIFICATIONS` (33) are both
   guarded. Anything newer must be too.
 - The process is killed at **every ignition-off**, which is why EQ, queue, position, shuffle/repeat
-  and leveler state are all persisted and restored.
+  and leveler state are all persisted and restored. Persisting them was not enough on its own:
+  `apply()` returns before the write reaches disk, and an ignition-off cuts power, so position
+  checkpoints `commit()` synchronously. They also write *only* index and position — the periodic
+  save used to re-serialise the whole queue to JSON every five seconds, which against thousands of
+  tracks is a large write on a timer.
+- **The UI is dark with no light variant, on purpose.** A near-white panel at eye level in a dark
+  cabin is glare on the glass and ruined dark adaptation. The accent is amber for the reason
+  instrument clusters have been for decades: legible at low brightness, little blue light. Type is
+  scaled above Material's defaults because density 1.0 makes every dp physically smaller here.
 
 ## 2. Answered: the unit has no SAF at all
 
@@ -185,7 +193,7 @@ JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" ./gradlew :app:assembleD
 
 ## 7. The `crossfade` branch
 
-Complete and verified structurally; **unmerged on purpose**.
+Complete, **merged up to date with `main`**, still **unmerged into `main` on purpose**.
 
 Design avoids the obvious trap: rather than a facade re-implementing queue handling, the primary
 player keeps owning the timeline and session, and a second player carries only the *tail* of the
@@ -198,6 +206,21 @@ real playback. Also confirmed no regression with crossfade off.
 
 **Not verified: how it sounds.** For a crossfade that is the entire point, which is why it sits on a
 branch. Listen before merging.
+
+`main` has been merged into it (`b9240f0`), so it builds against everything current — dark theme,
+filesystem scanner, resume-on-boot, release plumbing — and its own tests bring the suite to 71.
+Twelve textual conflicts, all the same shape: each branch had added a feature beside the other, so
+both sides stayed. The conflict that mattered was invisible to git — `CrossfadeController` builds
+the tail player and was still calling `EngineRenderersFactory` with the signature from before the
+leveller joined the chain, which only surfaced as a type error once the merge compiled.
+
+**One caveat to listen for.** The tail player gets its own leveller, deliberately left off. A fresh
+one would start at unity and climb ~1 dB/sec while the primary had already settled elsewhere for
+that same track, so the audio being faded out would drift. Flat is at least steady. What it does
+not fix: with levelling **on** and the primary settled away from unity, the tail starts at a
+different level than the track was just playing at. Seeding the tail with the primary's gain is the
+real answer and needs a setter `LevelerAudioProcessor` does not have. Both features default off, so
+this only bites with both on — try that combination deliberately.
 
 **The listening session is already set up — it needs ears, not setup.** On the `ATOTO_S8_A10`
 emulator: the `crossfade` build is installed, `Music/CrossfadeTest` is granted and scanned, the
@@ -237,8 +260,18 @@ ends and starts with `ffmpeg -sseof`/`-t` and strips tags so the queue order is 
      rewriting foreign-key references in *other* tables. `MIGRATION_3_4` renames two tables, so
      that was the one plausible way it could behave differently in the car than on a desk. It
      doesn't; both sides agree.
-4. Sleep timer, tag editor, synced lyrics, widgets/skins — real Poweramp features, lower value here.
-5. Android Auto and Chromecast are **deliberately deprioritized** — on a device that *is* the head
+4. **Gapless is still untested** — the one honest "unknown" left. Testing it by ear cannot detect a
+   20 ms seam; Media3 ships `CapturingAudioSink` in `media3-test-utils-robolectric` for exactly
+   this, which lets a test assert the captured sample count equals the sum of both files with no
+   silence inserted. That needs a test-harness dependency added, so it is a piece of work rather
+   than a check.
+5. **Release mechanics are done** — see `RELEASING.md`. Adaptive icon, signing read from a
+   gitignored `keystore.properties`, and a minified release build that was *run*, not just built
+   (13.7 MB debug becomes 2.35 MB). What is still missing before publishing anywhere: a privacy
+   policy, and a decision about whether Play is even the right destination given the app is built
+   around one unit's missing document picker.
+6. Sleep timer, tag editor, synced lyrics, widgets/skins — real Poweramp features, lower value here.
+7. Android Auto and Chromecast are **deliberately deprioritized** — on a device that *is* the head
    unit they buy little.
 
 ## 9. Working style that fit this project
