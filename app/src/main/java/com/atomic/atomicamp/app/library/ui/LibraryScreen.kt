@@ -4,6 +4,8 @@ import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +37,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -111,13 +114,11 @@ fun LibraryScreen(
         val isWide = maxWidth > maxHeight
 
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Library", style = MaterialTheme.typography.titleLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Four buttons and a title fit across 1280dp of head unit and do not come close to
+            // fitting across a phone in portrait, where they wrapped into blobs and pushed Now
+            // Playing off the screen entirely. Narrow layouts get the title on its own line and
+            // a scrolling button row.
+            val headerButtons: @Composable () -> Unit = {
                     FilledTonalButton(onClick = onNavigateToDiagnostics) { Text("Info") }
                     FilledTonalButton(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
                     FilledTonalButton(
@@ -141,7 +142,24 @@ fun LibraryScreen(
                         },
                     ) { Text("Add folder") }
                     Button(onClick = onNavigateToNowPlaying) { Text("Now Playing") }
+            }
+
+            if (isWide) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Library", style = MaterialTheme.typography.titleLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { headerButtons() }
                 }
+            } else {
+                Text("Library", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) { headerButtons() }
             }
 
             addFolderError?.let { message ->
@@ -195,14 +213,28 @@ fun LibraryScreen(
                 return@Column
             }
 
-            TabRow(selectedTabIndex = tab.ordinal) {
+            // TabRow splits its width evenly, which cannot fit five labels on a phone -- they
+            // clipped mid-word. Narrow layouts scroll the strip instead.
+            val tabs: @Composable () -> Unit = {
                 LibraryTab.entries.forEach { entry ->
                     Tab(
                         selected = tab == entry,
                         onClick = { libraryViewModel.selectTab(entry) },
-                        text = { Text(entry.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                        text = {
+                            Text(
+                                text = entry.name.lowercase().replaceFirstChar { it.uppercase() },
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        },
                     )
                 }
+            }
+
+            if (isWide) {
+                TabRow(selectedTabIndex = tab.ordinal) { tabs() }
+            } else {
+                ScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 0.dp) { tabs() }
             }
 
             Spacer(Modifier.height(8.dp))
