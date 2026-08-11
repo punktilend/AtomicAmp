@@ -65,10 +65,11 @@ silence.
 
 `K:\Media\Music` — **3,164 FLACs, 61 GB**. Facts established by scanning it, not assuming:
 
-- **0 of 3,150 readable files have ReplayGain tags.** This is why loudness is measured in real time
-  rather than read. Don't "add ReplayGain support" — it would do nothing. (That survey predates the
-  library reaching 3,350 files, so the count is stale for anything added since, though the
-  conclusion is unlikely to have flipped.)
+- **0 of 3,350 files have ReplayGain tags.** Re-measured across the whole library after it grew from
+  the original 3,164, this time with `ffprobe` rather than a hand-written metadata-block reader:
+  every file returned tags, none returned a `REPLAYGAIN_*` or `R128_*` key, and nothing failed to
+  parse. This is why loudness is measured in real time rather than read. Don't "add ReplayGain
+  support" — it would do nothing.
 - **The 14 files that "didn't parse as FLAC" are fine — settled, don't re-investigate.** They are
   all of *NOFX — Ribbed*, every track, each a valid FLAC carrying a ~4.5 KB ID3v2 tag *ahead* of
   the `fLaC` magic. Only the PC-side survey script cared, because it looked for the magic at offset
