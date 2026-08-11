@@ -14,6 +14,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
+import com.atomic.atomicamp.engine.PlaybackPreferences
 import com.atomic.atomicamp.engine.PlaybackService
 import com.atomic.atomicamp.engine.dsp.EqPresets
 import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
@@ -54,6 +55,8 @@ data class PlayerUiState(
     val presetName: String = EqPresets.FLAT.name,
     /** Volume leveling between tracks. */
     val levelerEnabled: Boolean = false,
+    /** Start playing again by itself when the unit powers up. */
+    val resumeOnBoot: Boolean = true,
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -94,6 +97,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     init {
+        _uiState.value = _uiState.value.copy(
+            resumeOnBoot = PlaybackPreferences.resumeOnBoot(getApplication()),
+        )
         val app = getApplication<Application>()
         val sessionToken = SessionToken(app, ComponentName(app, PlaybackService::class.java))
         val controllerFuture = MediaController.Builder(app, sessionToken).buildAsync()
@@ -407,6 +413,11 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val args = Bundle().apply { putBoolean(PlaybackService.EXTRA_LEVELER_ENABLED, enabled) }
         c.sendCustomCommand(SessionCommand(PlaybackService.COMMAND_SET_LEVELER, Bundle.EMPTY), args)
         _uiState.value = _uiState.value.copy(levelerEnabled = enabled)
+    }
+
+    fun setResumeOnBoot(enabled: Boolean) {
+        PlaybackPreferences.setResumeOnBoot(getApplication(), enabled)
+        _uiState.value = _uiState.value.copy(resumeOnBoot = enabled)
     }
 
     fun setEqEnabled(enabled: Boolean) {

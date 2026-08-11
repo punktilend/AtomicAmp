@@ -175,6 +175,8 @@ fun PlayerScreen(
                                 presetName = uiState.presetName,
                                 levelerEnabled = uiState.levelerEnabled,
                                 onLevelerChange = viewModel::setLevelerEnabled,
+                                resumeOnBoot = uiState.resumeOnBoot,
+                                onResumeOnBootChange = viewModel::setResumeOnBoot,
                                 onEqEnabledChange = viewModel::setEqEnabled,
                                 onPreampChange = viewModel::setPreamp,
                                 onBandChange = viewModel::setBandGain,
@@ -216,6 +218,8 @@ fun PlayerScreen(
                     presetName = uiState.presetName,
                     levelerEnabled = uiState.levelerEnabled,
                     onLevelerChange = viewModel::setLevelerEnabled,
+                    resumeOnBoot = uiState.resumeOnBoot,
+                    onResumeOnBootChange = viewModel::setResumeOnBoot,
                     onEqEnabledChange = viewModel::setEqEnabled,
                     onPreampChange = viewModel::setPreamp,
                     onBandChange = viewModel::setBandGain,
@@ -495,6 +499,8 @@ private fun EqualizerPanel(
     presetName: String,
     levelerEnabled: Boolean,
     onLevelerChange: (Boolean) -> Unit,
+    resumeOnBoot: Boolean,
+    onResumeOnBootChange: (Boolean) -> Unit,
     onEqEnabledChange: (Boolean) -> Unit,
     onPreampChange: (Float) -> Unit,
     onBandChange: (Int, Float) -> Unit,
@@ -522,6 +528,14 @@ private fun EqualizerPanel(
         ) {
             Text("Level volume between tracks", style = MaterialTheme.typography.labelMedium)
             Switch(checked = levelerEnabled, onCheckedChange = onLevelerChange)
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Resume playing when the car starts", style = MaterialTheme.typography.labelMedium)
+            Switch(checked = resumeOnBoot, onCheckedChange = onResumeOnBootChange)
         }
         Spacer(Modifier.height(4.dp))
 
