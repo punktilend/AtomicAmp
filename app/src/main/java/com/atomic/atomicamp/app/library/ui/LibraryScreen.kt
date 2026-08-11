@@ -1,5 +1,6 @@
 package com.atomic.atomicamp.app.library.ui
 
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -95,6 +96,11 @@ fun LibraryScreen(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri -> uri?.let { libraryViewModel.addFolder(it) } }
 
+    // A stock Android device always has a document picker, so launching unguarded is safe there.
+    // The ATOTO's AICE firmware is not stock, and a missing handler throws rather than returning
+    // null -- which took the whole app down instead of reporting the one thing worth knowing.
+    var addFolderError by remember { mutableStateOf<String?>(null) }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         // Wide + short (the in-car head unit) gets multiple columns; a portrait phone gets one.
         val isWide = maxWidth > maxHeight
@@ -109,9 +115,32 @@ fun LibraryScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onNavigateToDiagnostics) { Text("Info") }
                     Button(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
-                    Button(onClick = { addFolderLauncher.launch(null) }) { Text("Add folder") }
+                    Button(
+                        onClick = {
+                            addFolderError = try {
+                                addFolderLauncher.launch(null)
+                                null
+                            } catch (e: ActivityNotFoundException) {
+                                "This device has no document picker (nothing handles " +
+                                    "ACTION_OPEN_DOCUMENT_TREE), so folders cannot be granted this " +
+                                    "way. Open Info for the full report."
+                            } catch (e: Exception) {
+                                "Could not open the document picker: ${e.javaClass.simpleName}: " +
+                                    "${e.message}. Open Info for the full report."
+                            }
+                        },
+                    ) { Text("Add folder") }
                     Button(onClick = onNavigateToNowPlaying) { Text("Now Playing") }
                 }
+            }
+
+            addFolderError?.let { message ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
 
             if (isScanning) {

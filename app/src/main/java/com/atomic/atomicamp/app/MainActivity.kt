@@ -15,6 +15,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.atomic.atomicamp.app.diagnostics.CrashLog
 import com.atomic.atomicamp.app.diagnostics.DiagnosticsScreen
 import com.atomic.atomicamp.app.library.ui.LibraryScreen
 import com.atomic.atomicamp.app.library.ui.LibraryViewModel
@@ -34,11 +35,20 @@ class MainActivity : ComponentActivity() {
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    private val requestStoragePermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Installed first so it catches anything that fails during start-up too.
+        CrashLog.install(this)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            requestStoragePermission.launch("android.permission.READ_MEDIA_AUDIO")
+        } else {
+            requestStoragePermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
 
         setContent {

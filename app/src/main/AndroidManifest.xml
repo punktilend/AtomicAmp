@@ -1,6 +1,32 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!--
+      The library is built on SAF grants, which need no permission. This is here for the
+      diagnostics probe, and for the direct-filesystem fallback that becomes necessary if the
+      head unit's firmware turns out to ship no document picker at all.
+    -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <!--
+      Package visibility filtering (API 30+) would otherwise hide picker activities from
+      queryIntentActivities and make "no handler" indistinguishable from "not allowed to look".
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT_TREE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT" />
+            <data android:mimeType="*/*" />
+        </intent>
+    </queries>
+
     <application
+        android:requestLegacyExternalStorage="true"
         android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
