@@ -5,7 +5,14 @@
       diagnostics probe, and for the direct-filesystem fallback that becomes necessary if the
       head unit's firmware turns out to ship no document picker at all.
     -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!--
+      13 split the storage permission by media type. Without this declaration the runtime request
+      MainActivity makes on 13+ is auto-denied with no dialog shown, which fails silently.
+    -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
     <!--
       Package visibility filtering (API 30+) would otherwise hide picker activities from
