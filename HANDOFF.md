@@ -42,12 +42,27 @@ Consequences that are easy to get wrong:
 
 ## 2. Unresolved, and it gates real work
 
-**Can the ATOTO's SAF document picker see USB storage?** Unknown. The entire library is built on SAF
-folder grants, so if the picker can't reach removable media, `LibraryScanner` needs a
-direct-filesystem fallback. Everything else is downstream of this answer.
+**Can the ATOTO's SAF document picker see USB storage?** The entire library is built on SAF folder
+grants, so if the picker can't reach removable media, `LibraryScanner` needs a direct-filesystem
+fallback. Everything else is downstream of this answer.
 
-A USB stick was prepared at `R:\` with `AtomicAmp.apk` + test music. The check is: sideload, tap
-**Add folder**, see whether the stick is listed.
+**First real datapoint: on the unit, pressing Add folder crashed the app.** The launch was
+unguarded, and `ActivityResultContracts.OpenDocumentTree` throws `ActivityNotFoundException` rather
+than returning null when nothing handles the intent — which is consistent with AICE shipping no
+document picker at all, though a crash alone does not prove that and it has not yet been confirmed
+on the device.
+
+So don't re-run the old "does the stick appear in the picker" check first; it may never get as far
+as a picker. Sideload `R:\AtomicAmp-crashfix-2026-08-10.apk` (or later) and read **Info**, which now
+reports it directly:
+
+- `== DOCUMENT PICKER (SAF) ==` — what handles `OPEN_DOCUMENT_TREE`, and whether DocumentsUI is
+  installed, disabled or absent. `NOTHING HANDLES THIS` settles the design question outright.
+- `== DIRECT FILE READ PROBE ==` — audio files reachable per volume with plain `File` calls. This
+  is the evidence about whether a fallback can work *before* one gets written; on the API 29
+  emulator it correctly finds files under `/storage/emulated/0`.
+- `== LAST CRASH ==` — the previous crash's stack trace, since the unit has no other way to report
+  one.
 
 **ADB is not available on the unit.** Its AICE UI firmware hides Developer options (the
 build-number tap is inert) and exposes no network ADB — confirmed by scanning ports 1–10000 and the
