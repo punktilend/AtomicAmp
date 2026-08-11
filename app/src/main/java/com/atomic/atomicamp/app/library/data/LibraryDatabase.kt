@@ -11,14 +11,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  * Adds [Track.metadataInferred]. A real migration rather than a destructive one: rescanning a
  * large library over USB on a head unit is slow, and there is no reason to make the user pay it.
  */
-private val MIGRATION_1_2 = object : Migration(1, 2) {
+internal val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE tracks ADD COLUMN metadataInferred INTEGER NOT NULL DEFAULT 0")
     }
 }
 
 /** Adds playlist storage. */
-private val MIGRATION_2_3 = object : Migration(2, 3) {
+internal val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
             """
@@ -52,7 +52,7 @@ private val MIGRATION_2_3 = object : Migration(2, 3) {
  * Existing rows map cleanly: every track so far is a whole file, so its id is simply its uri, and
  * playlist entries already reference tracks by that same string.
  */
-private val MIGRATION_3_4 = object : Migration(3, 4) {
+internal val MIGRATION_3_4 = object : Migration(3, 4) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
             """
@@ -118,10 +118,16 @@ private val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/**
+ * Every migration, in order. One list so the builder below and the migration tests can never
+ * disagree about which migrations exist -- adding one here covers both.
+ */
+internal val LIBRARY_MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+
 @Database(
     entities = [Track::class, MusicFolder::class, Playlist::class, PlaylistTrack::class],
     version = 4,
-    exportSchema = false,
+    exportSchema = true,
 )
 abstract class LibraryDatabase : RoomDatabase() {
     abstract fun trackDao(): TrackDao
@@ -138,7 +144,7 @@ abstract class LibraryDatabase : RoomDatabase() {
                     context.applicationContext,
                     LibraryDatabase::class.java,
                     "library.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                ).addMigrations(*LIBRARY_MIGRATIONS)
                     .build()
                     .also { instance = it }
             }

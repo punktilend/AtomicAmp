@@ -1,0 +1,12 @@
+<resources>
+    <!--
+      The window theme matters even though the UI is Compose: it paints the window before the
+      first frame. Inheriting a Light theme meant a white flash on every launch, and the app
+      relaunches at every ignition-on.
+    -->
+    <style name="Theme.AtomicAmp" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/atomic_background</item>
+        <item name="android:statusBarColor">@color/atomic_background</item>
+        <item name="android:navigationBarColor">@color/atomic_background</item>
+    </style>
+</resources>

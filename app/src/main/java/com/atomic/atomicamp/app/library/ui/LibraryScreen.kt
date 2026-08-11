@@ -1,8 +1,11 @@
 package com.atomic.atomicamp.app.library.ui
 
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,10 +32,12 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Tab
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,7 +58,9 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.compose.ui.platform.LocalContext
 import com.atomic.atomicamp.app.PlayerViewModel
+import com.atomic.atomicamp.app.diagnostics.StorageProbe
 import com.atomic.atomicamp.app.library.data.AlbumSummary
 import com.atomic.atomicamp.app.library.data.Track
 import java.io.File
@@ -83,7 +90,9 @@ fun LibraryScreen(
     playerViewModel: PlayerViewModel,
     onNavigateToNowPlaying: () -> Unit,
     onNavigateToDiagnostics: () -> Unit = {},
+    onNavigateToFolderPicker: () -> Unit = {},
 ) {
+    val context = LocalContext.current
     val tab by libraryViewModel.tab.collectAsState()
     val isScanning by libraryViewModel.isScanning.collectAsState()
     val scanProgress by libraryViewModel.scanProgress.collectAsState()
@@ -95,23 +104,71 @@ fun LibraryScreen(
         contract = ActivityResultContracts.OpenDocumentTree(),
     ) { uri -> uri?.let { libraryViewModel.addFolder(it) } }
 
+    // A stock Android device always has a document picker, so launching unguarded is safe there.
+    // The ATOTO's AICE firmware is not stock, and a missing handler throws rather than returning
+    // null -- which took the whole app down instead of reporting the one thing worth knowing.
+    var addFolderError by remember { mutableStateOf<String?>(null) }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         // Wide + short (the in-car head unit) gets multiple columns; a portrait phone gets one.
         val isWide = maxWidth > maxHeight
 
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Library", style = MaterialTheme.typography.titleLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onNavigateToDiagnostics) { Text("Info") }
-                    Button(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
-                    Button(onClick = { addFolderLauncher.launch(null) }) { Text("Add folder") }
+            // Four buttons and a title fit across 1280dp of head unit and do not come close to
+            // fitting across a phone in portrait, where they wrapped into blobs and pushed Now
+            // Playing off the screen entirely. Narrow layouts get the title on its own line and
+            // a scrolling button row.
+            val headerButtons: @Composable () -> Unit = {
+                    FilledTonalButton(onClick = onNavigateToDiagnostics) { Text("Info") }
+                    FilledTonalButton(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
+                    FilledTonalButton(
+                        onClick = {
+                            // Prefer SAF where it exists: its grant survives reboots on its own.
+                            // Where it doesn't, browsing the filesystem is the only way in.
+                            if (!StorageProbe.hasDocumentPicker(context)) {
+                                onNavigateToFolderPicker()
+                            } else {
+                                addFolderError = try {
+                                    addFolderLauncher.launch(null)
+                                    null
+                                } catch (e: ActivityNotFoundException) {
+                                    onNavigateToFolderPicker()
+                                    null
+                                } catch (e: Exception) {
+                                    "Could not open the document picker: ${e.javaClass.simpleName}: " +
+                                        "${e.message}. Open Info for the full report."
+                                }
+                            }
+                        },
+                    ) { Text("Add folder") }
                     Button(onClick = onNavigateToNowPlaying) { Text("Now Playing") }
+            }
+
+            if (isWide) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Library", style = MaterialTheme.typography.titleLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { headerButtons() }
                 }
+            } else {
+                Text("Library", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) { headerButtons() }
+            }
+
+            addFolderError?.let { message ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
 
             if (isScanning) {
@@ -156,14 +213,28 @@ fun LibraryScreen(
                 return@Column
             }
 
-            TabRow(selectedTabIndex = tab.ordinal) {
+            // TabRow splits its width evenly, which cannot fit five labels on a phone -- they
+            // clipped mid-word. Narrow layouts scroll the strip instead.
+            val tabs: @Composable () -> Unit = {
                 LibraryTab.entries.forEach { entry ->
                     Tab(
                         selected = tab == entry,
                         onClick = { libraryViewModel.selectTab(entry) },
-                        text = { Text(entry.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                        text = {
+                            Text(
+                                text = entry.name.lowercase().replaceFirstChar { it.uppercase() },
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        },
                     )
                 }
+            }
+
+            if (isWide) {
+                TabRow(selectedTabIndex = tab.ordinal) { tabs() }
+            } else {
+                ScrollableTabRow(selectedTabIndex = tab.ordinal, edgePadding = 0.dp) { tabs() }
             }
 
             Spacer(Modifier.height(8.dp))

@@ -7,7 +7,9 @@ import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.atomic.atomicamp.engine.dsp.CrossfadeCurve
+import com.atomic.atomicamp.engine.dsp.FadeAudioProcessor
 import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
+import com.atomic.atomicamp.engine.dsp.LevelerAudioProcessor
 
 /**
  * Overlaps the end of one track with the start of the next.
@@ -150,9 +152,25 @@ internal class CrossfadeController(
         tail?.let { return it }
 
         val equalizer = GraphicEqualizerAudioProcessor()
+
+        // The tail gets its own leveller and it stays off, which is a deliberate choice and a
+        // caveat rather than an oversight.
+        //
+        // The leveller adapts at about 1 dB/sec from what it measures. A fresh instance on the
+        // tail would start at unity and start climbing, while the primary had already settled on
+        // some other gain for this very track -- so the outgoing audio would drift in level for
+        // the few seconds it is being faded out. Leaving it flat at least keeps the tail steady.
+        //
+        // What it cannot avoid: if levelling is on and the primary had settled away from unity,
+        // the tail starts at a different level than the same track was just playing at. Seeding
+        // the tail with the primary's gain is the real fix, and it needs a way to set the
+        // leveller's starting gain that does not exist yet. Levelling is off by default, so this
+        // only bites when both features are on at once -- listen for it in that combination
+        // before merging.
+        val leveler = LevelerAudioProcessor()
         val player = ExoPlayer.Builder(
             context,
-            EngineRenderersFactory(context, equalizer, com.atomic.atomicamp.engine.dsp.FadeAudioProcessor()),
+            EngineRenderersFactory(context, equalizer, leveler, FadeAudioProcessor()),
         )
             // No focus handling: this is the same logical playback as the primary, and asking for
             // focus a second time would look like a second app starting.

@@ -100,10 +100,14 @@ class LibraryRepository(context: Context) {
         displayName: String,
         onProgress: (ScanProgress) -> Unit = {},
     ) = withContext(Dispatchers.IO) {
-        appContext.contentResolver.takePersistableUriPermission(
-            treeUri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION,
-        )
+        // A file:// root has no grant to persist, and asking for one throws. Reaching it again
+        // after an ignition-off relies on READ_EXTERNAL_STORAGE instead.
+        if (treeUri.scheme != "file") {
+            appContext.contentResolver.takePersistableUriPermission(
+                treeUri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
         folderDao.insert(
             MusicFolder(uri = treeUri.toString(), displayName = displayName, dateAddedMs = System.currentTimeMillis()),
         )

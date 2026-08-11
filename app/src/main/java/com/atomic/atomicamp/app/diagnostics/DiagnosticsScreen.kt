@@ -63,6 +63,7 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
             Button(onClick = { context.launchSetting(Settings.ACTION_DEVICE_INFO_SETTINGS) }) {
                 Text("About device")
             }
+            Button(onClick = { CrashLog.clear(context); onBack() }) { Text("Clear crash") }
         }
 
         Spacer(Modifier.height(12.dp))
@@ -102,6 +103,31 @@ fun DiagnosticsScreen(onBack: () -> Unit) {
             add("")
             add("== MOUNT POINTS ==")
             addAll(commonMountPointLines())
+
+            // The library is built entirely on SAF grants. If nothing here handles
+            // OPEN_DOCUMENT_TREE then Add folder has no way in on this firmware, which is a
+            // design question and not a bug to be retried.
+            add("")
+            add("== DOCUMENT PICKER (SAF) ==")
+            addAll(StorageProbe.documentPickerLines(context))
+
+            add("")
+            add("== STORAGE PERMISSIONS ==")
+            addAll(StorageProbe.permissionLines(context))
+
+            // Evidence for whether a direct-filesystem fallback could work if SAF cannot.
+            add("")
+            add("== DIRECT FILE READ PROBE ==")
+            addAll(StorageProbe.audioProbeLines(context))
+
+            add("")
+            add("== LAST CRASH ==")
+            val crash = CrashLog.read(context)
+            if (crash == null) {
+                add("(none recorded)")
+            } else {
+                addAll(crash.trimEnd().lines())
+            }
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize()) {

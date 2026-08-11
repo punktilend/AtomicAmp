@@ -21,14 +21,31 @@ internal class EqualizerSettingsStore(context: Context) {
         const val KEY_PREAMP = "preamp_db"
         const val KEY_PRESET = "preset_name"
         const val KEY_BAND_PREFIX = "band_"
+        const val KEY_LEVELER = "leveler_enabled"
+        const val KEY_RESUME_ON_BOOT = "resume_on_boot"
         const val KEY_CROSSFADE_MS = "crossfade_ms"
     }
+
+    /** Whether volume leveling between tracks is on. Off by default: it changes what you hear. */
+    val levelerEnabled: Boolean get() = prefs.getBoolean(KEY_LEVELER, false)
+
+    /**
+     * Defaults to on: this app exists for a head unit, where coming back on its own at
+     * ignition-on is the point rather than a surprise.
+     */
+    var resumeOnBoot: Boolean
+        get() = prefs.getBoolean(KEY_RESUME_ON_BOOT, true)
+        set(value) { prefs.edit().putBoolean(KEY_RESUME_ON_BOOT, value).apply() }
 
     /** Overlap between tracks in milliseconds; 0 means crossfade is off. */
     val crossfadeMs: Int get() = prefs.getInt(KEY_CROSSFADE_MS, 0)
 
     fun saveCrossfadeMs(value: Int) {
         prefs.edit().putInt(KEY_CROSSFADE_MS, value.coerceIn(0, 12_000)).apply()
+    }
+
+    fun saveLevelerEnabled(value: Boolean) {
+        prefs.edit().putBoolean(KEY_LEVELER, value).apply()
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
