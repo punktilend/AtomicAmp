@@ -1,7 +1,12 @@
 <!--
-  An amplifier knob crossed with an orbit: the two halves of the name, in the amber the app
-  itself uses. Everything sits inside the inner 66dp safe zone, since a launcher may mask the
-  outer ring to any shape it likes.
+  An orbit around an amp knob: the two halves of the name, in the amber the app itself uses.
+
+  The pointer sits 35 degrees off vertical deliberately. A full ring with a mark at twelve o'clock
+  reads as a power button rather than a dial that has been turned somewhere.
+
+  Everything stays inside the inner 66dp safe zone (21..87), since a launcher may mask the outer
+  ring to any shape. Geometry matches store/play-icon-512.png so the listing and the launcher
+  cannot drift apart.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -9,37 +14,34 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Orbit, tilted so it reads as a path around the knob rather than a flat underline. -->
     <group
         android:pivotX="54"
         android:pivotY="54"
         android:rotation="-26">
         <path
             android:fillColor="#00000000"
-            android:pathData="M27,54 a27,12 0 1,0 54,0 a27,12 0 1,0 -54,0"
-            android:strokeColor="#FFB35C"
-            android:strokeWidth="3.5"
-            android:strokeAlpha="0.55" />
+            android:pathData="M25,54 a29,13.5 0 1,0 58,0 a29,13.5 0 1,0 -58,0"
+            android:strokeColor="#966C3C"
+            android:strokeWidth="2.4" />
         <path
             android:fillColor="#FFB35C"
-            android:pathData="M81,54 m-4.5,0 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0" />
+            android:pathData="M83,54 m-2.6,0 a2.6,2.6 0 1,0 5.2,0 a2.6,2.6 0 1,0 -5.2,0" />
     </group>
 
-    <!-- Knob body, drawn over the orbit so the orbit reads as passing behind it. -->
+    <!-- Punches the orbit out just past the ring, so it reads as passing behind the knob. -->
     <path
         android:fillColor="#0D0F11"
-        android:pathData="M54,54 m-21,0 a21,21 0 1,0 42,0 a21,21 0 1,0 -42,0" />
+        android:pathData="M54,54 m-18.8,0 a18.8,18.8 0 1,0 37.6,0 a18.8,18.8 0 1,0 -37.6,0" />
     <path
         android:fillColor="#00000000"
-        android:pathData="M34,54 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0"
+        android:pathData="M39,54 a15,15 0 1,0 30,0 a15,15 0 1,0 -30,0"
         android:strokeColor="#FFB35C"
-        android:strokeWidth="6.5" />
+        android:strokeWidth="5" />
 
-    <!-- Pointer at twelve o'clock: the one detail that says "level" rather than "planet". -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M54,40 L54,54"
+        android:pathData="M54,54 L59.7,45.9"
         android:strokeColor="#FFB35C"
         android:strokeLineCap="round"
-        android:strokeWidth="6.5" />
+        android:strokeWidth="5" />
 </vector>

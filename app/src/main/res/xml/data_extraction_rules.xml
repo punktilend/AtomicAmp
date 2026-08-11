@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ equivalent of backup_rules.xml. Same reasoning: the library and the saved queue
+  describe storage on one specific device, so carrying them to another one restores a library of
+  tracks that cannot be opened.
+
+  device-transfer mirrors cloud-backup here. A direct phone-to-phone transfer has exactly the same
+  problem: the new device does not have the USB stick.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="database" path="library.db" />
+        <exclude domain="database" path="library.db-wal" />
+        <exclude domain="database" path="library.db-shm" />
+        <exclude domain="sharedpref" path="atomicamp_playback.xml" />
+        <exclude domain="file" path="album_art" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="database" path="library.db" />
+        <exclude domain="database" path="library.db-wal" />
+        <exclude domain="database" path="library.db-shm" />
+        <exclude domain="sharedpref" path="atomicamp_playback.xml" />
+        <exclude domain="file" path="album_art" />
+    </device-transfer>
+</data-extraction-rules>

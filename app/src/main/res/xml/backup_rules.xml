@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup rules for Android 11 and earlier.
+
+  The library database is excluded on purpose. Every row points at a file:// path or a SAF
+  document uri on *this* device — a USB stick, a granted folder. Restoring it onto a new phone
+  produces a library full of tracks that all fail to play, which is worse than an empty one the
+  user can rescan in a minute.
+
+  Playback state is excluded for the same reason: a saved queue of dead uris.
+
+  Equaliser settings are small, device-independent and genuinely worth keeping, so they stay.
+-->
+<full-backup-content>
+    <exclude domain="database" path="library.db" />
+    <exclude domain="database" path="library.db-wal" />
+    <exclude domain="database" path="library.db-shm" />
+    <exclude domain="sharedpref" path="atomicamp_playback.xml" />
+    <exclude domain="file" path="album_art" />
+</full-backup-content>
