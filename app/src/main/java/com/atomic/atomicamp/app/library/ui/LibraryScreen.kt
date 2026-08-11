@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -117,9 +118,9 @@ fun LibraryScreen(
             ) {
                 Text("Library", style = MaterialTheme.typography.titleLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = onNavigateToDiagnostics) { Text("Info") }
-                    Button(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
-                    Button(
+                    FilledTonalButton(onClick = onNavigateToDiagnostics) { Text("Info") }
+                    FilledTonalButton(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
+                    FilledTonalButton(
                         onClick = {
                             // Prefer SAF where it exists: its grant survives reboots on its own.
                             // Where it doesn't, browsing the filesystem is the only way in.

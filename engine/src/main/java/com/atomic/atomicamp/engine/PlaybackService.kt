@@ -35,6 +35,7 @@ class PlaybackService : MediaSessionService() {
         const val COMMAND_APPLY_PRESET = "atomicamp.APPLY_PRESET"
         const val COMMAND_GET_EQ_STATE = "atomicamp.GET_EQ_STATE"
         const val COMMAND_SET_LEVELER = "atomicamp.SET_LEVELER"
+
         const val EXTRA_LEVELER_ENABLED = "leveler_enabled"
         const val EXTRA_BAND_INDEX = "band_index"
         const val EXTRA_GAIN_DB = "gain_db"

@@ -8,7 +8,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,11 +20,13 @@ import android.net.Uri
 import com.atomic.atomicamp.app.library.ui.FolderPickerScreen
 import com.atomic.atomicamp.app.library.ui.LibraryScreen
 import com.atomic.atomicamp.app.library.ui.LibraryViewModel
+import com.atomic.atomicamp.app.ui.theme.AtomicAmpTheme
 
 private const val ROUTE_LIBRARY = "library"
 private const val ROUTE_NOW_PLAYING = "nowPlaying"
 private const val ROUTE_DIAGNOSTICS = "diagnostics"
 private const val ROUTE_FOLDER_PICKER = "folderPicker"
+private const val ROUTE_FULLSCREEN_ART = "fullscreenArt"
 
 class MainActivity : ComponentActivity() {
 
@@ -55,7 +56,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme {
+            AtomicAmpTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
                     NavHost(navController = navController, startDestination = ROUTE_LIBRARY) {
@@ -84,6 +85,13 @@ class MainActivity : ComponentActivity() {
                                 onSaveQueueAsPlaylist = { name, uris ->
                                     libraryViewModel.createPlaylist(name, uris)
                                 },
+                                onShowFullscreenArt = { navController.navigate(ROUTE_FULLSCREEN_ART) },
+                            )
+                        }
+                        composable(ROUTE_FULLSCREEN_ART) {
+                            FullscreenArtScreen(
+                                viewModel = playerViewModel,
+                                onExit = { navController.popBackStack() },
                             )
                         }
                         composable(ROUTE_DIAGNOSTICS) {

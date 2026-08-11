@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -77,6 +78,7 @@ fun PlayerScreen(
     viewModel: PlayerViewModel,
     onNavigateToLibrary: () -> Unit = {},
     onSaveQueueAsPlaylist: (name: String, trackUris: List<String>) -> Unit = { _, _ -> },
+    onShowFullscreenArt: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -129,7 +131,10 @@ fun PlayerScreen(
                         ) {
                             AlbumArt(
                                 artUri = uiState.queue.getOrNull(uiState.currentIndex)?.albumArtUri,
-                                modifier = Modifier.fillMaxHeight().aspectRatio(1f),
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .aspectRatio(1f)
+                                    .clickable(onClick = onShowFullscreenArt),
                             )
                         }
                         Spacer(Modifier.height(8.dp))
@@ -436,11 +441,11 @@ private fun TransportControls(
         ) {
             val buttonModifier = Modifier.weight(1f).height(TRANSPORT_BUTTON_HEIGHT)
             val padding = ButtonDefaults.ContentPadding
-            Button(onClick = onPrevious, modifier = buttonModifier, contentPadding = padding) { Text("Prev") }
+            FilledTonalButton(onClick = onPrevious, modifier = buttonModifier, contentPadding = padding) { Text("Prev") }
             Button(onClick = onPlayPause, modifier = buttonModifier, contentPadding = padding) {
                 Text(if (isPlaying) "Pause" else "Play")
             }
-            Button(onClick = onNext, modifier = buttonModifier, contentPadding = padding) { Text("Next") }
+            FilledTonalButton(onClick = onNext, modifier = buttonModifier, contentPadding = padding) { Text("Next") }
         }
 
         Spacer(Modifier.height(8.dp))
