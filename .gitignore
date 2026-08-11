@@ -10,3 +10,8 @@ captures/
 .cxx/
 *.hprof
 hs_err_pid*.log
+
+# Release signing: never commit the key or its passwords.
+keystore.properties
+*.jks
+*.keystore
