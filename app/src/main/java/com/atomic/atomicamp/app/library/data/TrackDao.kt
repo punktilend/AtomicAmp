@@ -12,6 +12,9 @@ interface TrackDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(tracks: List<Track>)
 
+    @Query("SELECT * FROM tracks WHERE id = :id LIMIT 1")
+    suspend fun trackById(id: String): Track?
+
     @Query("DELETE FROM tracks WHERE folderUri = :folderUri")
     suspend fun deleteByFolder(folderUri: String)
 

@@ -20,6 +20,8 @@ import android.net.Uri
 import com.atomic.atomicamp.app.library.ui.FolderPickerScreen
 import com.atomic.atomicamp.app.library.ui.LibraryScreen
 import com.atomic.atomicamp.app.library.ui.LibraryViewModel
+import com.atomic.atomicamp.app.library.ui.TagEditorScreen
+import androidx.compose.runtime.collectAsState
 import com.atomic.atomicamp.app.ui.theme.AtomicAmpTheme
 
 private const val ROUTE_LIBRARY = "library"
@@ -27,6 +29,7 @@ private const val ROUTE_NOW_PLAYING = "nowPlaying"
 private const val ROUTE_DIAGNOSTICS = "diagnostics"
 private const val ROUTE_FOLDER_PICKER = "folderPicker"
 private const val ROUTE_FULLSCREEN_ART = "fullscreenArt"
+private const val ROUTE_TAG_EDITOR = "tagEditor"
 
 class MainActivity : ComponentActivity() {
 
@@ -86,7 +89,22 @@ class MainActivity : ComponentActivity() {
                                     libraryViewModel.createPlaylist(name, uris)
                                 },
                                 onShowFullscreenArt = { navController.navigate(ROUTE_FULLSCREEN_ART) },
+                                onEditTags = { navController.navigate(ROUTE_TAG_EDITOR) },
                             )
+                        }
+                        composable(ROUTE_TAG_EDITOR) {
+                            val state = playerViewModel.uiState.collectAsState().value
+                            val current = state.queue.getOrNull(state.currentIndex)
+                            if (current == null) {
+                                navController.popBackStack()
+                            } else {
+                                TagEditorScreen(
+                                    viewModel = libraryViewModel,
+                                    trackId = current.id,
+                                    trackTitle = current.title,
+                                    onDone = { navController.popBackStack() },
+                                )
+                            }
                         }
                         composable(ROUTE_FULLSCREEN_ART) {
                             FullscreenArtScreen(

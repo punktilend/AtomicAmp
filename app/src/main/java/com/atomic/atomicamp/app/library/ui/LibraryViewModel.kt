@@ -172,6 +172,12 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         _selectedArtist.value = null
     }
 
+    suspend fun readTags(trackId: String): Map<String, String>? = repository.readTags(trackId)
+
+    fun saveTags(trackId: String, tags: Map<String, String>, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(repository.editTags(trackId, tags)) }
+    }
+
     fun addFolder(uri: Uri) {
         viewModelScope.launch {
             _isScanning.value = true

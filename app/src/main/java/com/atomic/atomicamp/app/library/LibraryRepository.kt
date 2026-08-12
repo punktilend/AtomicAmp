@@ -12,8 +12,10 @@ import com.atomic.atomicamp.app.library.data.PlaylistSummary
 import com.atomic.atomicamp.app.library.data.Track
 import com.atomic.atomicamp.app.library.scan.LibraryScanner
 import com.atomic.atomicamp.app.library.scan.ScanProgress
+import com.atomic.atomicamp.app.library.tags.FlacTags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import java.io.File
 import kotlinx.coroutines.withContext
 
 /**
@@ -93,6 +95,58 @@ class LibraryRepository(context: Context) {
             if (nextSegment.isNotEmpty()) children += nextSegment
         }
         return children.toList()
+    }
+
+    /** Current tags for a track, or null when the file cannot be read as FLAC. */
+    suspend fun readTags(trackId: String): Map<String, String>? = withContext(Dispatchers.IO) {
+        val track = trackDao.trackById(trackId) ?: return@withContext null
+        localFileFor(track.uri)?.let { FlacTags.read(it) }
+    }
+
+    /**
+     * Writes [tags] into the file and corrects that one row.
+     *
+     * Deliberately not a rescan: the new values are already known, and rescanning thousands of
+     * tracks to learn something already in hand would make an edit feel like a chore.
+     */
+    suspend fun editTags(trackId: String, tags: Map<String, String>): Boolean =
+        withContext(Dispatchers.IO) {
+            val track = trackDao.trackById(trackId) ?: return@withContext false
+            val file = localFileFor(track.uri) ?: return@withContext false
+            if (!FlacTags.write(file, tags)) return@withContext false
+
+            fun tag(key: String, fallback: String) =
+                tags[key]?.takeIf { it.isNotBlank() } ?: fallback
+
+            trackDao.upsert(
+                listOf(
+                    track.copy(
+                        title = tag(FlacTags.TITLE, track.title),
+                        artist = tag(FlacTags.ARTIST, track.artist),
+                        album = tag(FlacTags.ALBUM, track.album),
+                        albumArtist = tag(FlacTags.ALBUM_ARTIST, track.albumArtist),
+                        genre = tags[FlacTags.GENRE] ?: track.genre,
+                        year = tags[FlacTags.DATE]?.take(4)?.toIntOrNull() ?: track.year,
+                        trackNumber = tags[FlacTags.TRACK_NUMBER]?.substringBefore('/')
+                            ?.toIntOrNull() ?: track.trackNumber,
+                        discNumber = tags[FlacTags.DISC_NUMBER]?.substringBefore('/')
+                            ?.toIntOrNull() ?: track.discNumber,
+                        // The values came from the user, so nothing here is a guess any more.
+                        metadataInferred = false,
+                    ),
+                ),
+            )
+            true
+        }
+
+    /**
+     * Editing rewrites the file, which needs a real path. SAF grants are taken read-only, so a
+     * content:// track is not editable and says so rather than failing obscurely.
+     */
+    private fun localFileFor(uri: String): File? {
+        val parsed = Uri.parse(uri)
+        if (parsed.scheme != "file") return null
+        return parsed.path?.let(::File)?.takeIf { it.canWrite() }
     }
 
     suspend fun addFolder(

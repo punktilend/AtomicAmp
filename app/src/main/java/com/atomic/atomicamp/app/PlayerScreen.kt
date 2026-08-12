@@ -79,6 +79,7 @@ fun PlayerScreen(
     onNavigateToLibrary: () -> Unit = {},
     onSaveQueueAsPlaylist: (name: String, trackUris: List<String>) -> Unit = { _, _ -> },
     onShowFullscreenArt: () -> Unit = {},
+    onEditTags: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -112,7 +113,11 @@ fun PlayerScreen(
             ) {
                 Text("Now Playing", style = MaterialTheme.typography.titleLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { pickerLauncher.launch(arrayOf("audio/*")) }) { Text("Add files") }
+                    FilledTonalButton(
+                        onClick = onEditTags,
+                        enabled = uiState.queue.getOrNull(uiState.currentIndex) != null,
+                    ) { Text("Edit tags") }
+                    FilledTonalButton(onClick = { pickerLauncher.launch(arrayOf("audio/*")) }) { Text("Add files") }
                     Button(onClick = onNavigateToLibrary) { Text("Library") }
                 }
             }
