@@ -182,6 +182,8 @@ fun PlayerScreen(
                                 onLevelerChange = viewModel::setLevelerEnabled,
                                 resumeOnBoot = uiState.resumeOnBoot,
                                 onResumeOnBootChange = viewModel::setResumeOnBoot,
+                                sleepTimerEndMs = uiState.sleepTimerEndMs,
+                                onSleepTimerChange = viewModel::setSleepTimer,
                                 onEqEnabledChange = viewModel::setEqEnabled,
                                 onPreampChange = viewModel::setPreamp,
                                 onBandChange = viewModel::setBandGain,
@@ -225,6 +227,8 @@ fun PlayerScreen(
                     onLevelerChange = viewModel::setLevelerEnabled,
                     resumeOnBoot = uiState.resumeOnBoot,
                     onResumeOnBootChange = viewModel::setResumeOnBoot,
+                    sleepTimerEndMs = uiState.sleepTimerEndMs,
+                    onSleepTimerChange = viewModel::setSleepTimer,
                     onEqEnabledChange = viewModel::setEqEnabled,
                     onPreampChange = viewModel::setPreamp,
                     onBandChange = viewModel::setBandGain,
@@ -506,6 +510,8 @@ private fun EqualizerPanel(
     onLevelerChange: (Boolean) -> Unit,
     resumeOnBoot: Boolean,
     onResumeOnBootChange: (Boolean) -> Unit,
+    sleepTimerEndMs: Long,
+    onSleepTimerChange: (Int) -> Unit,
     onEqEnabledChange: (Boolean) -> Unit,
     onPreampChange: (Float) -> Unit,
     onBandChange: (Int, Float) -> Unit,
@@ -542,6 +548,7 @@ private fun EqualizerPanel(
             Text("Resume playing when the car starts", style = MaterialTheme.typography.labelMedium)
             Switch(checked = resumeOnBoot, onCheckedChange = onResumeOnBootChange)
         }
+        SleepTimerRow(sleepTimerEndMs = sleepTimerEndMs, onSelect = onSleepTimerChange)
         Spacer(Modifier.height(4.dp))
 
         if (vertical) {
@@ -668,4 +675,52 @@ private fun formatMs(ms: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
     return "%d:%02d".format(minutes, seconds)
+}
+
+
+/**
+ * Sleep timer control.
+ *
+ * The remaining time is derived from the deadline and recomputed once a second here rather than
+ * pushed from the service, because a countdown only has to be right while someone is looking at
+ * it.
+ */
+@Composable
+private fun SleepTimerRow(sleepTimerEndMs: Long, onSelect: (Int) -> Unit) {
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(sleepTimerEndMs) {
+        while (sleepTimerEndMs > 0L) {
+            now = System.currentTimeMillis()
+            kotlinx.coroutines.delay(1_000)
+        }
+    }
+
+    val remainingMs = (sleepTimerEndMs - now).coerceAtLeast(0L)
+    val label = if (sleepTimerEndMs > 0L && remainingMs > 0L) {
+        val totalMinutes = (remainingMs / 60_000).toInt()
+        val seconds = ((remainingMs / 1000) % 60).toInt()
+        "Sleep timer — %d:%02d left".format(totalMinutes, seconds)
+    } else {
+        "Sleep timer"
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            val active = sleepTimerEndMs > 0L && remainingMs > 0L
+            SleepChip("Off", selected = !active) { onSelect(0) }
+            listOf(15, 30, 60).forEach { minutes ->
+                SleepChip("${minutes}m", selected = false) { onSelect(minutes) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SleepChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
 }

@@ -57,6 +57,8 @@ data class PlayerUiState(
     val levelerEnabled: Boolean = false,
     /** Start playing again by itself when the unit powers up. */
     val resumeOnBoot: Boolean = true,
+    /** Wall-clock time the sleep timer fires at, or 0 when it is off. */
+    val sleepTimerEndMs: Long = 0L,
 )
 
 class PlayerViewModel(application: Application) : AndroidViewModel(application) {
@@ -181,6 +183,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
                     presetName = extras.getString(PlaybackService.EXTRA_PRESET_NAME)
                         ?: EqPresets.FLAT.name,
                     levelerEnabled = extras.getBoolean(PlaybackService.EXTRA_LEVELER_ENABLED),
+                    sleepTimerEndMs = extras.getLong(PlaybackService.EXTRA_SLEEP_END_MS),
                 )
             },
             MoreExecutors.directExecutor(),
@@ -413,6 +416,19 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         val args = Bundle().apply { putBoolean(PlaybackService.EXTRA_LEVELER_ENABLED, enabled) }
         c.sendCustomCommand(SessionCommand(PlaybackService.COMMAND_SET_LEVELER, Bundle.EMPTY), args)
         _uiState.value = _uiState.value.copy(levelerEnabled = enabled)
+    }
+
+    /** [minutes] of 0 or less turns the timer off. */
+    fun setSleepTimer(minutes: Int) {
+        val c = controller ?: return
+        val endMs =
+            if (minutes <= 0) 0L else System.currentTimeMillis() + minutes * 60_000L
+        val args = Bundle().apply { putLong(PlaybackService.EXTRA_SLEEP_END_MS, endMs) }
+        c.sendCustomCommand(
+            SessionCommand(PlaybackService.COMMAND_SET_SLEEP_TIMER, Bundle.EMPTY),
+            args,
+        )
+        _uiState.value = _uiState.value.copy(sleepTimerEndMs = endMs)
     }
 
     fun setResumeOnBoot(enabled: Boolean) {

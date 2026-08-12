@@ -35,8 +35,12 @@ class PlaybackService : MediaSessionService() {
         const val COMMAND_APPLY_PRESET = "atomicamp.APPLY_PRESET"
         const val COMMAND_GET_EQ_STATE = "atomicamp.GET_EQ_STATE"
         const val COMMAND_SET_LEVELER = "atomicamp.SET_LEVELER"
+        const val COMMAND_SET_SLEEP_TIMER = "atomicamp.SET_SLEEP_TIMER"
 
         const val EXTRA_LEVELER_ENABLED = "leveler_enabled"
+
+        /** Wall-clock time the timer fires at, or 0 for off. */
+        const val EXTRA_SLEEP_END_MS = "sleep_end_ms"
         const val EXTRA_BAND_INDEX = "band_index"
         const val EXTRA_GAIN_DB = "gain_db"
         const val EXTRA_ENABLED = "enabled"
@@ -56,6 +60,33 @@ class PlaybackService : MediaSessionService() {
     private lateinit var playbackStateStore: PlaybackStateStore
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * Sleep timer, as a wall-clock deadline rather than a remaining duration.
+     *
+     * A deadline survives being asked about at any time and needs no ticking to stay correct,
+     * so the UI can render a countdown from it without the service pushing updates. It is
+     * deliberately **not** persisted: waking the car up to music that stops in four minutes
+     * because of a timer set last night would be baffling.
+     */
+    private var sleepTimerEndMs = 0L
+
+    private val sleepRunnable = Runnable {
+        // Pause rather than stop, so the queue and position stay exactly where they were.
+        player.pause()
+        sleepTimerEndMs = 0L
+    }
+
+    private fun setSleepTimer(endMs: Long) {
+        mainHandler.removeCallbacks(sleepRunnable)
+        sleepTimerEndMs = endMs
+        val delay = endMs - System.currentTimeMillis()
+        if (endMs > 0L && delay > 0L) {
+            mainHandler.postDelayed(sleepRunnable, delay)
+        } else {
+            sleepTimerEndMs = 0L
+        }
+    }
 
     /**
      * Periodic position checkpoint. Transitions and pauses are saved as they happen, but a process
@@ -112,6 +143,7 @@ class PlaybackService : MediaSessionService() {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             playbackStateStore.save(player)
             mainHandler.removeCallbacks(savePositionRunnable)
+        mainHandler.removeCallbacks(sleepRunnable)
             if (isPlaying) {
                 mainHandler.postDelayed(savePositionRunnable, POSITION_SAVE_INTERVAL_MS)
             }
@@ -144,6 +176,7 @@ class PlaybackService : MediaSessionService() {
         putBoolean(EXTRA_ENABLED, equalizer.isEqEnabled())
         putString(EXTRA_PRESET_NAME, settingsStore.presetName)
         putBoolean(EXTRA_LEVELER_ENABLED, leveler.enabled)
+        putLong(EXTRA_SLEEP_END_MS, sleepTimerEndMs)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession =
@@ -180,6 +213,7 @@ class PlaybackService : MediaSessionService() {
                 .add(SessionCommand(COMMAND_APPLY_PRESET, Bundle.EMPTY))
                 .add(SessionCommand(COMMAND_GET_EQ_STATE, Bundle.EMPTY))
                 .add(SessionCommand(COMMAND_SET_LEVELER, Bundle.EMPTY))
+                .add(SessionCommand(COMMAND_SET_SLEEP_TIMER, Bundle.EMPTY))
                 .build()
             return MediaSession.ConnectionResult.accept(
                 availableSessionCommands,
@@ -222,6 +256,10 @@ class PlaybackService : MediaSessionService() {
                         equalizer.setBandGains(preset.gainsDb)
                         settingsStore.save(equalizer, preset.name)
                     }
+                }
+
+                COMMAND_SET_SLEEP_TIMER -> {
+                    setSleepTimer(args.getLong(EXTRA_SLEEP_END_MS))
                 }
 
                 COMMAND_SET_LEVELER -> {
