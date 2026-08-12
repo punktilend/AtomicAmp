@@ -243,6 +243,21 @@ ends and starts with `ffmpeg -sseof`/`-t` and strips tags so the queue order is 
 
 ## 8. What's next
 
+**Start here: three UI changes are committed but have never been run.** Each builds and the suite
+is green, but none has been seen on a screen, and stacking a fourth on top of them would mean a
+later change resting on something unproven. Clearing them is one short sequence — boot
+`ATOTO_S8_A10`, add `Music/CrossfadeTest` through the built-in browser, then:
+
+| Check | What to look for |
+|---|---|
+| **Edit tags** (Now Playing) | Fields populate from the file, a save sticks, and the library row updates without a rescan. The `FlacTags` writer underneath *is* well tested; the screen is not. |
+| **Sleep timer** (equaliser pane) | Countdown ticks down, and playback pauses rather than stops when it fires. |
+| **Library header on a phone** | All four buttons visible in two rows, no longer scrolled off the right edge. |
+
+The blocker was environmental rather than code: the only emulator attached belonged to another
+project (the AtomicShave AVD), and a second would not start on an alternate port.
+
+
 1. ~~Answer the SAF/USB question~~ — **answered, see section 2.** The unit ships no document picker,
    and `LibraryScanner` now walks `file://` roots. What's left is to scan the real 3,350-file
    library off USB on the unit and see how long it takes and whether it holds up.
@@ -270,8 +285,17 @@ ends and starts with `ffmpeg -sseof`/`-t` and strips tags so the queue order is 
    (13.7 MB debug becomes 2.35 MB). What is still missing before publishing anywhere: a privacy
    policy, and a decision about whether Play is even the right destination given the app is built
    around one unit's missing document picker.
-6. Sleep timer, tag editor, synced lyrics, widgets/skins — real Poweramp features, lower value here.
-7. Android Auto and Chromecast are **deliberately deprioritized** — on a device that *is* the head
+6. **Feature gap against Poweramp, partly closed.** Built and tested since: a FLAC tag
+   reader/writer (`FlacTags`, rewrites via a temp file so a failure cannot damage an original)
+   with an edit screen; a sleep timer held as a wall-clock deadline and deliberately not
+   persisted; and offline lyrics parsing (`LrcParser`/`LyricsLoader`, sidecar `.lrc` or embedded
+   tag, nothing fetched). **Lyrics have no UI yet** — the parser is done and covered, the display
+   is not written. Still missing entirely: home-screen widget, visualisations, skins.
+7. Tag editing only works on files reachable by path. SAF grants are taken read-only, so on a
+   phone most tracks are not editable — asking for write access is a different permission
+   conversation than the one the user had when adding the folder. On the ATOTO everything is
+   `file://`, so it all works there.
+8. Android Auto and Chromecast are **deliberately deprioritized** — on a device that *is* the head
    unit they buy little.
 
 ## 9. Working style that fit this project
