@@ -114,34 +114,33 @@ fun LibraryScreen(
         val isWide = maxWidth > maxHeight
 
         Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            // Four buttons and a title fit across 1280dp of head unit and do not come close to
-            // fitting across a phone in portrait, where they wrapped into blobs and pushed Now
-            // Playing off the screen entirely. Narrow layouts get the title on its own line and
-            // a scrolling button row.
+            // Four buttons and a title fit across 1280dp of head unit and nowhere near across a
+            // phone in portrait. Narrow layouts get the title on its own line and the buttons in
+            // two rows below it.
+            // Prefer SAF where it exists: its grant survives reboots on its own. Where it
+            // doesn't, browsing the filesystem is the only way in.
+            val onAddFolder: () -> Unit = {
+                if (!StorageProbe.hasDocumentPicker(context)) {
+                    onNavigateToFolderPicker()
+                } else {
+                    addFolderError = try {
+                        addFolderLauncher.launch(null)
+                        null
+                    } catch (e: ActivityNotFoundException) {
+                        onNavigateToFolderPicker()
+                        null
+                    } catch (e: Exception) {
+                        "Could not open the document picker: ${e.javaClass.simpleName}: " +
+                            "${e.message}. Open Info for the full report."
+                    }
+                }
+            }
+
             val headerButtons: @Composable () -> Unit = {
-                    FilledTonalButton(onClick = onNavigateToDiagnostics) { Text("Info") }
-                    FilledTonalButton(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
-                    FilledTonalButton(
-                        onClick = {
-                            // Prefer SAF where it exists: its grant survives reboots on its own.
-                            // Where it doesn't, browsing the filesystem is the only way in.
-                            if (!StorageProbe.hasDocumentPicker(context)) {
-                                onNavigateToFolderPicker()
-                            } else {
-                                addFolderError = try {
-                                    addFolderLauncher.launch(null)
-                                    null
-                                } catch (e: ActivityNotFoundException) {
-                                    onNavigateToFolderPicker()
-                                    null
-                                } catch (e: Exception) {
-                                    "Could not open the document picker: ${e.javaClass.simpleName}: " +
-                                        "${e.message}. Open Info for the full report."
-                                }
-                            }
-                        },
-                    ) { Text("Add folder") }
-                    Button(onClick = onNavigateToNowPlaying) { Text("Now Playing") }
+                FilledTonalButton(onClick = onNavigateToDiagnostics) { Text("Info") }
+                FilledTonalButton(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
+                FilledTonalButton(onClick = onAddFolder) { Text("Add folder") }
+                Button(onClick = onNavigateToNowPlaying) { Text("Now Playing") }
             }
 
             if (isWide) {
@@ -154,12 +153,37 @@ fun LibraryScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { headerButtons() }
                 }
             } else {
+                // Two rows of two rather than one scrolling row. A scroll fits the buttons but
+                // parks the most important one -- Now Playing -- off the right edge, where it
+                // looks like a rendering bug and is only reachable by a swipe nobody knows to
+                // make. Sharing the width shows all four at once.
                 Text("Library", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) { headerButtons() }
+                ) {
+                    FilledTonalButton(
+                        onClick = onNavigateToDiagnostics,
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Info") }
+                    FilledTonalButton(
+                        onClick = { libraryViewModel.rescanAll() },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Rescan") }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilledTonalButton(onClick = onAddFolder, modifier = Modifier.weight(1f)) {
+                        Text("Add folder")
+                    }
+                    Button(onClick = onNavigateToNowPlaying, modifier = Modifier.weight(1f)) {
+                        Text("Now Playing")
+                    }
+                }
             }
 
             addFolderError?.let { message ->
