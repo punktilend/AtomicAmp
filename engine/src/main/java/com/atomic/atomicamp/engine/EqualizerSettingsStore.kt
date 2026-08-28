@@ -13,7 +13,7 @@ import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
  * primitives written on user interaction, so the extra dependency and coroutine plumbing buy
  * nothing here.
  */
-internal class EqualizerSettingsStore(context: Context) {
+internal class EqualizerSettingsStore(private val context: Context) {
 
     private companion object {
         const val PREFS_NAME = "atomicamp_eq"
@@ -29,11 +29,12 @@ internal class EqualizerSettingsStore(context: Context) {
     val levelerEnabled: Boolean get() = prefs.getBoolean(KEY_LEVELER, false)
 
     /**
-     * Defaults to on: this app exists for a head unit, where coming back on its own at
-     * ignition-on is the point rather than a surprise.
+     * Defaults to on for a head unit, where coming back by itself at ignition-on is the point,
+     * and off for a phone, where music starting on its own after a reboot is alarming rather
+     * than helpful. Either way the user can change it and the choice sticks.
      */
     var resumeOnBoot: Boolean
-        get() = prefs.getBoolean(KEY_RESUME_ON_BOOT, true)
+        get() = prefs.getBoolean(KEY_RESUME_ON_BOOT, DeviceProfile.isHeadUnitLike(context))
         set(value) { prefs.edit().putBoolean(KEY_RESUME_ON_BOOT, value).apply() }
 
     fun saveLevelerEnabled(value: Boolean) {

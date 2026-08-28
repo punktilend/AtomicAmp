@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -63,27 +65,10 @@ import com.atomic.atomicamp.app.PlayerViewModel
 import com.atomic.atomicamp.app.diagnostics.StorageProbe
 import com.atomic.atomicamp.app.library.data.AlbumSummary
 import com.atomic.atomicamp.app.library.data.Track
+import com.atomic.atomicamp.app.ui.theme.LocalUiScale
 import java.io.File
 
-/**
- * Minimum row height for use in a moving vehicle.
- *
- * Deliberately well above the 48dp platform minimum. The target head unit reports density 1.0
- * while its panel is actually ~210ppi, so every dp renders physically *smaller* there than the
- * same number would on a phone — 48dp lands under 6mm. Sizing by phone intuition produces targets
- * that are genuinely hard to hit while driving.
- */
-private val ROW_MIN_HEIGHT = 76.dp
-
-/**
- * Minimum column width for list grids. Yields 3 columns on the 1280dp head unit, 2 on a 1024dp
- * screen, and 1 in phone portrait — without hardcoding a count per device.
- */
-private val LIST_COLUMN_MIN_WIDTH = 380.dp
-
-/** Narrow enough not to steal list width, wide enough to hit while moving. */
-private val RAIL_WIDTH = 28.dp
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LibraryScreen(
     libraryViewModel: LibraryViewModel,
@@ -159,31 +144,11 @@ fun LibraryScreen(
                 // make. Sharing the width shows all four at once.
                 Text("Library", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
-                Row(
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilledTonalButton(
-                        onClick = onNavigateToDiagnostics,
-                        modifier = Modifier.weight(1f),
-                    ) { Text("Info") }
-                    FilledTonalButton(
-                        onClick = { libraryViewModel.rescanAll() },
-                        modifier = Modifier.weight(1f),
-                    ) { Text("Rescan") }
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilledTonalButton(onClick = onAddFolder, modifier = Modifier.weight(1f)) {
-                        Text("Add folder")
-                    }
-                    Button(onClick = onNavigateToNowPlaying, modifier = Modifier.weight(1f)) {
-                        Text("Now Playing")
-                    }
-                }
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) { headerButtons() }
             }
 
             addFolderError?.let { message ->
@@ -310,7 +275,7 @@ private fun PlaylistsTab(
                 return@Column
             }
 
-            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LIST_COLUMN_MIN_WIDTH)) {
+            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LocalUiScale.current.listColumnMinWidth)) {
                 gridItemsIndexed(tracks) { index, track ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(modifier = Modifier.weight(1f)) {
@@ -339,13 +304,13 @@ private fun PlaylistsTab(
         if (playlists.isEmpty()) {
             EmptyHint("No playlists yet.")
         } else {
-            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LIST_COLUMN_MIN_WIDTH)) {
+            LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LocalUiScale.current.listColumnMinWidth)) {
                 gridItems(playlists) { playlist ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { vm.openPlaylist(playlist) }
-                            .heightIn(min = ROW_MIN_HEIGHT)
+                            .heightIn(min = LocalUiScale.current.rowMinHeight)
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -435,7 +400,7 @@ private fun AlphabetRail(
 ) {
     if (index.size < 2) return
     Column(
-        modifier = modifier.fillMaxHeight().width(RAIL_WIDTH),
+        modifier = modifier.fillMaxHeight().width(LocalUiScale.current.railWidth),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceEvenly,
     ) {
@@ -468,7 +433,7 @@ private fun TrackList(
 
     Row(modifier = Modifier.fillMaxSize()) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = LIST_COLUMN_MIN_WIDTH),
+            columns = GridCells.Adaptive(minSize = LocalUiScale.current.listColumnMinWidth),
             state = gridState,
             modifier = Modifier.weight(1f),
         ) {
@@ -555,7 +520,7 @@ private fun ArtistsTab(vm: LibraryViewModel, player: PlayerViewModel, onPlay: ()
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { vm.openArtist(artist.artist) }
-                .heightIn(min = ROW_MIN_HEIGHT)
+                .heightIn(min = LocalUiScale.current.rowMinHeight)
                 .padding(vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -568,7 +533,7 @@ private fun ArtistsTab(vm: LibraryViewModel, player: PlayerViewModel, onPlay: ()
             }
         }
     }
-    LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LIST_COLUMN_MIN_WIDTH)) {
+    LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LocalUiScale.current.listColumnMinWidth)) {
         gridItems(artists) { artist -> artistRow(artist) }
     }
 }
@@ -599,13 +564,13 @@ private fun FoldersTab(vm: LibraryViewModel, player: PlayerViewModel, onPlay: ()
             return@Column
         }
 
-        LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LIST_COLUMN_MIN_WIDTH)) {
+        LazyVerticalGrid(columns = GridCells.Adaptive(minSize = LocalUiScale.current.listColumnMinWidth)) {
             gridItems(childNames) { name ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { vm.openFolder(name) }
-                        .heightIn(min = ROW_MIN_HEIGHT)
+                        .heightIn(min = LocalUiScale.current.rowMinHeight)
                         .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -674,7 +639,7 @@ private fun TrackRow(track: Track, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .heightIn(min = ROW_MIN_HEIGHT)
+            .heightIn(min = LocalUiScale.current.rowMinHeight)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

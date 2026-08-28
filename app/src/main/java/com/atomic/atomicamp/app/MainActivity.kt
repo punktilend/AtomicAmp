@@ -7,7 +7,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -60,7 +63,15 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             AtomicAmpTheme {
-                Surface(modifier = Modifier.fillMaxSize()) {
+                // Android 15 makes edge-to-edge mandatory for targetSdk 35, so without this the
+                // content draws underneath the status bar and the gesture handle. The head unit
+                // never showed it -- API 29 still fits the window for you -- and it took running
+                // on a real phone to see the title sitting behind the clock.
+                Surface(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.safeDrawing),
+                ) {
                     val navController = rememberNavController()
                     NavHost(navController = navController, startDestination = ROUTE_LIBRARY) {
                         composable(ROUTE_LIBRARY) {

@@ -26,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.atomic.atomicamp.app.ui.theme.LocalUiScale
 import java.io.File
 
 /**
@@ -124,7 +125,7 @@ fun FolderPickerScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 76.dp)
+                        .heightIn(min = LocalUiScale.current.rowMinHeight)
                         .clickable { current = dir }
                         .padding(vertical = 12.dp),
                 ) {

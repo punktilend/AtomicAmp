@@ -4,6 +4,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalContext
+import com.atomic.atomicamp.engine.DeviceProfile
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -67,11 +70,33 @@ private val CarTypography = Typography(
     labelSmall = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
 )
 
+/**
+ * Near Material's own scale, nudged up a little. A phone reports its density honestly, so it needs
+ * none of the compensation the head unit does -- applying it anyway just makes everything look
+ * like accessibility scaling was left switched on.
+ */
+private val PhoneTypography = Typography(
+    titleLarge = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Medium),
+    titleMedium = TextStyle(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium),
+    bodyLarge = TextStyle(fontSize = 16.sp, lineHeight = 22.sp),
+    bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 19.sp),
+    bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 16.sp),
+    labelLarge = TextStyle(fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium),
+    labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium),
+    labelSmall = TextStyle(fontSize = 11.sp, lineHeight = 15.sp, fontWeight = FontWeight.Medium),
+)
+
 @Composable
 fun AtomicAmpTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = CarDarkColors,
-        typography = CarTypography,
-        content = content,
-    )
+    // The colours are shared: dark at eye level in a car is a safety property, and dark on a phone
+    // at night is simply pleasant, so there is nothing to branch on there.
+    val car = DeviceProfile.isHeadUnitLike(LocalContext.current)
+
+    CompositionLocalProvider(LocalUiScale provides if (car) CarUiScale else PhoneUiScale) {
+        MaterialTheme(
+            colorScheme = CarDarkColors,
+            typography = if (car) CarTypography else PhoneTypography,
+            content = content,
+        )
+    }
 }

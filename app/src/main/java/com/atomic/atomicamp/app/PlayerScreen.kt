@@ -5,9 +5,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -57,22 +61,14 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import com.atomic.atomicamp.app.ui.VerticalSlider
+import com.atomic.atomicamp.app.ui.theme.LocalUiScale
+import com.atomic.atomicamp.engine.DeviceProfile
 import com.atomic.atomicamp.engine.dsp.EqPreset
 import com.atomic.atomicamp.engine.dsp.EqPresets
 import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
 import java.io.File
 
-/**
- * Press target for transport controls, sized for a moving vehicle.
- *
- * Larger than phone intuition suggests on purpose: the target head unit reports density 1.0 on a
- * ~210ppi panel, so a dp renders physically smaller there than the same dp on a phone.
- */
-private val TRANSPORT_BUTTON_HEIGHT = 72.dp
-
-/** Queue rows are denser than library rows -- more of the queue matters more than reach here. */
-private val QUEUE_ROW_MIN_HEIGHT = 56.dp
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlayerScreen(
     viewModel: PlayerViewModel,
@@ -105,18 +101,43 @@ fun PlayerScreen(
         // the actual aspect ratio rather than assuming either one.
         val isWide = maxWidth > maxHeight
 
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                // Portrait scrolls; the head unit deliberately does not. In the car everything
+                // has to be reachable without scrolling while driving, and the wide layout uses
+                // weight() to guarantee that -- which a scrolling parent would break.
+                .then(if (isWide) Modifier else Modifier.verticalScroll(rememberScrollState()))
+                .padding(16.dp),
+        ) {
+            val hasTrack = uiState.queue.getOrNull(uiState.currentIndex) != null
+            if (isWide) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Now Playing", style = MaterialTheme.typography.titleLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(onClick = onEditTags, enabled = hasTrack) { Text("Edit tags") }
+                        FilledTonalButton(onClick = { pickerLauncher.launch(arrayOf("audio/*")) }) { Text("Add files") }
+                        Button(onClick = onNavigateToLibrary) { Text("Library") }
+                    }
+                }
+            } else {
+                // Three buttons beside a title do not fit a phone, and squeezing them crushed
+                // "Library" into a sliver against the right edge. Title on its own line, buttons
+                // sharing the width beneath it.
+                // Equal weights truncated the labels to "Edit", "Add", "Libra" at this phone's
+                // 1.5x font scale. Natural widths that wrap to another line survive any scale.
                 Text("Now Playing", style = MaterialTheme.typography.titleLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilledTonalButton(
-                        onClick = onEditTags,
-                        enabled = uiState.queue.getOrNull(uiState.currentIndex) != null,
-                    ) { Text("Edit tags") }
+                Spacer(Modifier.height(8.dp))
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    FilledTonalButton(onClick = onEditTags, enabled = hasTrack) { Text("Edit tags") }
                     FilledTonalButton(onClick = { pickerLauncher.launch(arrayOf("audio/*")) }) { Text("Add files") }
                     Button(onClick = onNavigateToLibrary) { Text("Library") }
                 }
@@ -237,16 +258,20 @@ fun PlayerScreen(
                 )
                 Spacer(Modifier.height(16.dp))
                 Text("Queue", style = MaterialTheme.typography.titleMedium)
-                LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                    itemsIndexed(uiState.queue) { index, track ->
-                        Text(
-                            text = track.title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = if (index == uiState.currentIndex) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(vertical = 4.dp),
-                        )
-                    }
+                // A plain Column, not a LazyColumn: the page around it scrolls, and a lazy list
+                // inside a scrolling parent is measured with infinite height and throws.
+                uiState.queue.forEachIndexed { index, track ->
+                    Text(
+                        text = track.title,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontWeight = if (index == uiState.currentIndex) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = LocalUiScale.current.queueRowMinHeight)
+                            .clickable { viewModel.playQueueItem(index) }
+                            .padding(vertical = 4.dp),
+                    )
                 }
             }
         }
@@ -326,7 +351,7 @@ private fun QueuePanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onPlayIndex(index) }
-                    .heightIn(min = QUEUE_ROW_MIN_HEIGHT)
+                    .heightIn(min = LocalUiScale.current.queueRowMinHeight)
                     .padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -452,7 +477,7 @@ private fun TransportControls(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         ) {
-            val buttonModifier = Modifier.weight(1f).height(TRANSPORT_BUTTON_HEIGHT)
+            val buttonModifier = Modifier.weight(1f).height(LocalUiScale.current.transportButtonHeight)
             val padding = ButtonDefaults.ContentPadding
             FilledTonalButton(onClick = onPrevious, modifier = buttonModifier, contentPadding = padding) { Text("Prev") }
             Button(onClick = onPlayPause, modifier = buttonModifier, contentPadding = padding) {
@@ -469,7 +494,7 @@ private fun TransportControls(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
         ) {
-            val modeModifier = Modifier.weight(1f).height(TRANSPORT_BUTTON_HEIGHT)
+            val modeModifier = Modifier.weight(1f).height(LocalUiScale.current.transportButtonHeight)
             ModeButton(
                 label = if (shuffleEnabled) "Shuffle On" else "Shuffle Off",
                 active = shuffleEnabled,
@@ -532,20 +557,17 @@ private fun EqualizerPanel(
         }
 
         PresetChips(presetName = presetName, onPresetSelected = onPresetSelected)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Level volume between tracks", style = MaterialTheme.typography.labelMedium)
+        SettingRow("Level volume between tracks") {
             Switch(checked = levelerEnabled, onCheckedChange = onLevelerChange)
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+        SettingRow(
+            // "the car" is only true on one of the two devices this runs on.
+            if (DeviceProfile.isHeadUnitLike(LocalContext.current)) {
+                "Resume playing when the car starts"
+            } else {
+                "Resume playing when the device starts"
+            },
         ) {
-            Text("Resume playing when the car starts", style = MaterialTheme.typography.labelMedium)
             Switch(checked = resumeOnBoot, onCheckedChange = onResumeOnBootChange)
         }
         SleepTimerRow(sleepTimerEndMs = sleepTimerEndMs, onSelect = onSleepTimerChange)
@@ -685,6 +707,7 @@ private fun formatMs(ms: Long): String {
  * pushed from the service, because a countdown only has to be right while someone is looking at
  * it.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SleepTimerRow(sleepTimerEndMs: Long, onSelect: (Int) -> Unit) {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -704,13 +727,11 @@ private fun SleepTimerRow(sleepTimerEndMs: Long, onSelect: (Int) -> Unit) {
         "Sleep timer"
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    // Four chips beside a label crushed the label to one character per line. Own line instead.
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Spacer(Modifier.height(6.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             val active = sleepTimerEndMs > 0L && remainingMs > 0L
             SleepChip("Off", selected = !active) { onSelect(0) }
             listOf(15, 30, 60).forEach { minutes ->
@@ -723,4 +744,28 @@ private fun SleepTimerRow(sleepTimerEndMs: Long, onSelect: (Int) -> Unit) {
 @Composable
 private fun SleepChip(label: String, selected: Boolean, onClick: () -> Unit) {
     FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
+}
+
+
+/**
+ * A settings line: a label on the left, one control on the right.
+ *
+ * The label takes the leftover width rather than its natural width. At the 1.5x system font scale
+ * this phone is set to, "Resume playing when the device starts" is wider than the screen, and a
+ * plain SpaceBetween row pushed the switch off the edge instead of wrapping the words.
+ */
+@Composable
+private fun SettingRow(label: String, control: @Composable () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.weight(1f),
+        )
+        control()
+    }
 }
