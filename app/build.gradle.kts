@@ -35,8 +35,8 @@ android {
         targetSdk = 35
         // Sideloaded builds already went out as 1; Android refuses an update that does
         // not increase this, and the failure looks like a corrupt download.
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
