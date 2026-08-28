@@ -6,6 +6,10 @@ Working notes for picking this project up cold. The README covers *what the code
 - Repo: <https://github.com/punktilend/AtomicAmp> (public, GPL-3.0)
 - Local: `C:\Users\adamm\AtomicPowerAmp`
 - Branches: `main` (all verified work), `crossfade` (built + verified, deliberately unmerged)
+- **It runs on two devices now.** The ATOTO head unit it was built for, and a phone (verified on a
+  Galaxy A37, Android 16). Section 10 covers what differs between them and why.
+- **It plays two libraries now.** Local folders, and the SpAtomify B2 bucket streamed on demand.
+  Section 11 covers that.
 
 ---
 
@@ -305,3 +309,64 @@ Verify claims on the device rather than asserting them; measure rather than esti
 throughput, gain values, track boundaries); and when a measurement contradicts an earlier
 conclusion, say so plainly — that happened more than once here and each time the correction
 mattered.
+
+## 10. Running on a phone as well as the dashboard
+
+The app was built for one device that lies about itself, and putting it on an honest one exposed
+four things at once. All are fixed; the reasoning matters more than the fixes.
+
+**Sizes were compensation, not taste.** `dp` is 1/160 inch, the ATOTO reports 160 dpi while its
+panel is ~210 ppi, so everything renders about 24% smaller there and every size was chosen to
+cancel that out. On a phone that inverts and the app looks like accessibility scaling was left on.
+`DeviceProfile.isHeadUnitLike()` picks between `CarUiScale`/`PhoneUiScale` and two type scales,
+keyed off the same density fact that caused the problem. Android's car UI mode would be the
+obvious signal and is unusable: AICE does not set it.
+
+**Edge-to-edge is mandatory** for `targetSdk 35` on Android 15, and nothing touched window insets,
+so the title sat behind the status bar. API 29 still fits the window for you, which is why the car
+never showed it.
+
+**System font scale is real.** The test phone is at 1.5x, which crushed fixed-width rows: header
+labels truncated to "Libra", the sleep timer label to one character per line. Anything that was a
+fixed `Row` of controls is a `FlowRow` now, and settings rows give the label the leftover width.
+
+**Portrait never scrolled**, so the equaliser and sleep timer were unreachable below the fold, and
+the fullscreen art view squeezed its text column to nothing. Portrait scrolls; the wide layout
+deliberately does not, because in the car everything must be reachable without scrolling.
+
+Defaults differ where they should: `resumeOnBoot` is on for a head unit and off for a phone, and
+the label says "the car" or "the device" to match.
+
+## 11. The cloud library
+
+`SpAtomify` is a Backblaze B2 bucket -- ~25,000 objects, 471 GB, 16,398 FLACs. AtomicBlast already
+streamed it; this brings that into AtomicAmp rather than maintaining two players.
+
+It fits because **the library is keyed on a uri string and the scanner branches on scheme**, so
+`b2://` is a third source through the same seam SAF and `file://` use.
+
+Things worth knowing before changing any of it:
+
+- **Stored uris are stable, signed urls are not.** A B2 download url carries an expiring token, so
+  the database stores `b2://bucket/path` and a `ResolvingDataSource` signs it at open time. Putting
+  a signed url in a row would give you a queue that stops working overnight.
+- **The cache wraps the resolver, not the other way round.** That ordering is what makes the cache
+  key the stable `b2://` uri. Keyed on the signed url, the same track would be cached afresh on
+  every play and never hit once. Cache is in `filesDir`, not `cacheDir`, because the system may
+  clear the latter whenever it likes.
+- **The scan opens nothing.** One flat paginated listing covers the whole prefix; metadata is
+  inferred from the path and rows are flagged inferred so the UI shows "guessed". Reading tags from
+  sixteen thousand files over the network would be a scan measured in hours.
+- **Art is a pointer until it is wanted.** The same listing finds the covers, so the scan records
+  each one's `b2://` path for free and `CloudArt` downloads it on first play, once per album.
+- **B2 calls check for a network first** and time out in eight seconds, not thirty. They sit in
+  front of playback starting, and offline a cached track had been taking 24 seconds to play while
+  connections timed out.
+
+**Two things to fix before anyone else installs this:**
+
+1. **The seeded B2 key is not bucket-scoped.** It can read every bucket on the account. It lives in
+   settings rather than compiled into the apk, so replacing it is a one-line change, but a build
+   for anyone else needs a key restricted to this bucket with only `listFiles` and `readFiles`.
+2. **Cue sheets and durations are not handled for cloud tracks.** 969 cue sheets in the bucket are
+   ignored, and duration reads 0:00 in lists until a track has been played once.
