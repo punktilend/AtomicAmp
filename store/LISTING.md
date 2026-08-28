@@ -34,6 +34,7 @@ WHAT IT PLAYS
 • MP3, M4A, AAC, OGG, Opus, WAV
 • Cue sheets — an album ripped as one long file is split into real tracks, with the multi-file
   sheets that should not be split left alone
+• Gapless playback, so a live album or a continuous mix plays without a seam
 
 YOUR LIBRARY, LOCAL OR CLOUD
 • Folders on the device, an SD card or a USB stick
@@ -113,7 +114,6 @@ scale a real person is using.
 - [ ] Privacy policy hosted at a public URL (`PRIVACY.md` is written; GitHub Pages will serve it)
 - [ ] Decide whether `resumeOnBoot` should still default to **on** for strangers — on a phone,
       music starting by itself after a reboot is surprising rather than helpful
-- [ ] Gapless playback is still untested; a music player will be judged on it
 - [ ] New personal Play accounts must run a closed test with 12 testers for 14 continuous days
       before applying for production. Confirm the current rule in the console — it is a two-week
       floor on the calendar no matter how ready the code is.

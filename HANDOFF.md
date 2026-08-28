@@ -275,11 +275,12 @@ project (the AtomicShave AVD), and a second would not start on an alternate port
      rewriting foreign-key references in *other* tables. `MIGRATION_3_4` renames two tables, so
      that was the one plausible way it could behave differently in the car than on a desk. It
      doesn't; both sides agree.
-4. **Gapless is still untested** — the one honest "unknown" left. Testing it by ear cannot detect a
-   20 ms seam; Media3 ships `CapturingAudioSink` in `media3-test-utils-robolectric` for exactly
-   this, which lets a test assert the captured sample count equals the sum of both files with no
-   silence inserted. That needs a test-harness dependency added, so it is a piece of work rather
-   than a check.
+4. ~~Gapless is untested~~ — **answered: it is gapless.** `GaplessPlaybackTest` plays two assets
+   that are one continuous tone cut in half, 44,100 frames each, and counts what reaches the audio
+   sink through the app's own processor chain. Exactly 88,200 frames arrive, so nothing is
+   inserted at the join and nothing is dropped. Counting at the sink rather than the decoder is
+   the point: it is the last stop before the hardware. By ear this was unanswerable, which is why
+   it stayed unknown for so long.
 5. **Release mechanics are done** — see `RELEASING.md`. Adaptive icon, signing read from a
    gitignored `keystore.properties`, and a minified release build that was *run*, not just built
    (13.7 MB debug becomes 2.35 MB). What is still missing before publishing anywhere: a privacy

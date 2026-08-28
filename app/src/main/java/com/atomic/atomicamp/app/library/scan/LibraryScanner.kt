@@ -1,8 +1,6 @@
 package com.atomic.atomicamp.app.library.scan
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -10,11 +8,10 @@ import android.provider.DocumentsContract.Document
 import com.atomic.atomicamp.engine.cloud.B2Client
 import com.atomic.atomicamp.engine.cloud.B2Settings
 import com.atomic.atomicamp.engine.cloud.B2Uris
+import com.atomic.atomicamp.app.library.art.AlbumArtCache
 import com.atomic.atomicamp.app.library.data.Track
 import com.atomic.atomicamp.app.library.data.TrackDao
 import java.io.File
-import java.io.FileOutputStream
-import java.security.MessageDigest
 
 /**
  * Walks a granted SAF tree, extracts tags via [MediaMetadataRetriever], and upserts [Track] rows
@@ -38,10 +35,6 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
 
         /** SQLite allows 999 bound variables per statement; stay comfortably under it. */
         const val SQLITE_VARIABLE_LIMIT = 500
-
-        /** Longest edge kept for cached art. Ample for a thumbnail or the Now Playing pane. */
-        const val MAX_ART_EDGE_PX = 512
-        const val ART_JPEG_QUALITY = 85
 
         const val SCHEME_FILE = "file"
     }
@@ -507,11 +500,7 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         album: String,
         folderArtUri: Uri?,
     ): String? {
-        val key = MessageDigest.getInstance("MD5")
-            .digest("$albumArtist|$album".toByteArray())
-            .joinToString("") { "%02x".format(it) }
-        val artDir = File(context.filesDir, "album_art").apply { mkdirs() }
-        val artFile = File(artDir, "$key.jpg")
+        val artFile = AlbumArtCache.fileFor(context, albumArtist, album)
         if (artFile.exists()) return artFile.absolutePath
 
         return try {
@@ -520,41 +509,10 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
                     context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                 }
             if (source == null) return null
-            writeBoundedArt(source, artFile)
+            AlbumArtCache.writeBounded(source, artFile)
             artFile.takeIf { it.exists() && it.length() > 0 }?.absolutePath
         } catch (e: Exception) {
             null
-        }
-    }
-
-    /**
-     * Downscales art before caching. Covers are routinely 1000px+ and hundreds of KB, but this is
-     * only ever shown as a thumbnail or a ~400dp pane. Bounding it keeps the cache small, makes
-     * list scrolling cheaper, and — the reason it matters — keeps the bytes small enough to hand
-     * to the media session, which crosses a Binder transaction with a hard size limit.
-     */
-    private fun writeBoundedArt(source: ByteArray, target: File) {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(source, 0, source.size, bounds)
-
-        val largestEdge = maxOf(bounds.outWidth, bounds.outHeight)
-        val options = BitmapFactory.Options().apply {
-            // Power-of-two subsampling during decode, so the full-size bitmap never exists.
-            inSampleSize = generateSequence(1) { it * 2 }
-                .first { largestEdge / it <= MAX_ART_EDGE_PX }
-        }
-        val bitmap = BitmapFactory.decodeByteArray(source, 0, source.size, options)
-        if (bitmap == null) {
-            // Undecodable: keep the original rather than losing the art entirely.
-            FileOutputStream(target).use { it.write(source) }
-            return
-        }
-        try {
-            FileOutputStream(target).use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, ART_JPEG_QUALITY, out)
-            }
-        } finally {
-            bitmap.recycle()
         }
     }
 }
