@@ -15,3 +15,6 @@ hs_err_pid*.log
 keystore.properties
 *.jks
 *.keystore
+
+# Generated artifact: 3 MB of embedded screenshots, rebuilt by tools/build_comparison_page.py
+store/atomicamp-vs-poweramp.html
