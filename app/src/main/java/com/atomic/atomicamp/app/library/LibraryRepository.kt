@@ -154,9 +154,9 @@ class LibraryRepository(context: Context) {
         displayName: String,
         onProgress: (ScanProgress) -> Unit = {},
     ) = withContext(Dispatchers.IO) {
-        // A file:// root has no grant to persist, and asking for one throws. Reaching it again
-        // after an ignition-off relies on READ_EXTERNAL_STORAGE instead.
-        if (treeUri.scheme != "file") {
+        // Only a SAF tree has a grant to persist. A file:// root relies on READ_EXTERNAL_STORAGE
+        // and a b2:// root on credentials -- asking for a uri permission on either throws.
+        if (treeUri.scheme == "content") {
             appContext.contentResolver.takePersistableUriPermission(
                 treeUri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION,

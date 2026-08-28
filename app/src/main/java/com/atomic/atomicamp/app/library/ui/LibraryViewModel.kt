@@ -2,6 +2,8 @@ package com.atomic.atomicamp.app.library.ui
 
 import android.app.Application
 import android.net.Uri
+import com.atomic.atomicamp.engine.cloud.B2Settings
+import com.atomic.atomicamp.engine.cloud.B2Uris
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.atomic.atomicamp.app.library.LibraryRepository
@@ -176,6 +178,31 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
 
     fun saveTags(trackId: String, tags: Map<String, String>, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(repository.editTags(trackId, tags)) }
+    }
+
+    /** Whether a cloud library is configured, which decides if the UI offers one at all. */
+    val cloudConfigured: Boolean
+        get() = B2Settings(getApplication()).isConfigured
+
+    /**
+     * Adds the whole configured bucket prefix as one source.
+     *
+     * There is no browsing step: a bucket is not a filesystem the user is going to navigate on a
+     * dashboard, and the prefix already points at the music.
+     */
+    fun addCloudLibrary() {
+        val settings = B2Settings(getApplication())
+        if (!settings.isConfigured) return
+        val uri = Uri.parse(B2Uris.forPath(settings.bucket, settings.prefix))
+        viewModelScope.launch {
+            _isScanning.value = true
+            _scanProgress.value = null
+            try {
+                repository.addFolder(uri, settings.bucket) { _scanProgress.value = it }
+            } finally {
+                _isScanning.value = false
+            }
+        }
     }
 
     fun addFolder(uri: Uri) {

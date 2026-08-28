@@ -13,6 +13,11 @@ plugins {
  * Absent that file the release build simply stays unsigned, so cloning and building still works
  * for anyone else without handing them a key. See RELEASING.md for how to create one.
  */
+val localPropertiesFile = rootProject.file("local.properties")
+val localProperties = Properties().apply {
+    if (localPropertiesFile.exists()) FileInputStream(localPropertiesFile).use { load(it) }
+}
+
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) {
@@ -34,6 +39,14 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Seed values only. These are copied into settings on first run and read from there
+        // afterwards, so the app can be pointed at a different key without a rebuild -- and so a
+        // build with none of these still works, just with no cloud library configured.
+        buildConfigField("String", "B2_KEY_ID", "\"${localProperties.getProperty("b2.keyId", "")}\"")
+        buildConfigField("String", "B2_APP_KEY", "\"${localProperties.getProperty("b2.appKey", "")}\"")
+        buildConfigField("String", "B2_BUCKET", "\"${localProperties.getProperty("b2.bucket", "")}\"")
+        buildConfigField("String", "B2_PREFIX", "\"${localProperties.getProperty("b2.prefix", "")}\"")
     }
 
     // The exported schemas are what MigrationTestHelper builds old databases from, so the test APK
@@ -74,6 +87,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

@@ -42,6 +42,9 @@ internal class PlaybackStateStore(context: Context) {
         // whole album from the beginning.
         const val FIELD_CLIP_START = "clipStart"
         const val FIELD_CLIP_END = "clipEnd"
+
+        /** Tracks kept either side of the current one. See the note in [save]. */
+        const val MAX_PERSISTED_QUEUE = 1000
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -59,8 +62,22 @@ internal class PlaybackStateStore(context: Context) {
             return
         }
 
+        // Persist a window around the current track rather than the whole queue.
+        //
+        // Measured, not guessed: adding a cloud library and tapping a song queued 16,398 tracks,
+        // and serialising that to JSON asked for an 18 MB allocation and killed the app with an
+        // OutOfMemoryError on a timeline change. A 3,350-track local library never came close.
+        //
+        // A window is also honest about what resume is for. Coming back after an ignition-off
+        // means continuing roughly where you were, not restoring an entire library's play order,
+        // and this many either side is days of continuous listening.
+        val current = player.currentMediaItemIndex.coerceAtLeast(0)
+        var start = (current - MAX_PERSISTED_QUEUE / 2).coerceAtLeast(0)
+        val end = (start + MAX_PERSISTED_QUEUE).coerceAtMost(count)
+        start = (end - MAX_PERSISTED_QUEUE).coerceAtLeast(0)
+
         val array = JSONArray()
-        for (i in 0 until count) {
+        for (i in start until end) {
             val item = player.getMediaItemAt(i)
             val metadata = item.mediaMetadata
             array.put(
@@ -82,7 +99,8 @@ internal class PlaybackStateStore(context: Context) {
 
         prefs.edit()
             .putString(KEY_QUEUE, array.toString())
-            .putInt(KEY_INDEX, player.currentMediaItemIndex)
+            // Relative to the window that was actually written.
+            .putInt(KEY_INDEX, (current - start).coerceIn(0, (end - start - 1).coerceAtLeast(0)))
             .putLong(KEY_POSITION_MS, player.currentPosition.coerceAtLeast(0L))
             .apply()
     }
@@ -116,8 +134,9 @@ internal class PlaybackStateStore(context: Context) {
 
     fun savePosition(player: Player) {
         if (player.mediaItemCount == 0) return
+        // The index is only meaningful against the window save() wrote, so a checkpoint updates
+        // the position and leaves the index alone.
         prefs.edit()
-            .putInt(KEY_INDEX, player.currentMediaItemIndex)
             .putLong(KEY_POSITION_MS, player.currentPosition.coerceAtLeast(0L))
             .commit()
     }

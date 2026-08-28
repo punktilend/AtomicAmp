@@ -9,6 +9,13 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import android.net.Uri
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.atomic.atomicamp.engine.cloud.B2Client
+import com.atomic.atomicamp.engine.cloud.B2Settings
+import com.atomic.atomicamp.engine.cloud.B2Uris
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -116,7 +123,23 @@ class PlaybackService : MediaSessionService() {
 
         leveler.enabled = settingsStore.levelerEnabled
 
+        // Cloud tracks are stored as b2:// and resolved to a signed URL at open time, so an
+        // expiring token never reaches the database. Local file:// and content:// tracks pass
+        // straight through the same factory untouched.
+        val b2Client = B2Client(B2Settings(this))
+        val dataSourceFactory = ResolvingDataSource.Factory(
+            DefaultDataSource.Factory(this),
+        ) { dataSpec ->
+            if (B2Uris.isB2(dataSpec.uri)) {
+                val signed = b2Client.signedUrl(B2Uris.pathOf(dataSpec.uri))
+                if (signed != null) dataSpec.withUri(Uri.parse(signed)) else dataSpec
+            } else {
+                dataSpec
+            }
+        }
+
         player = ExoPlayer.Builder(this, EngineRenderersFactory(this, equalizer, leveler, fade))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
             // Pause when the audio route drops (Bluetooth disconnect, headset unplug) instead of
             // continuing out loud on the unit's speakers.

@@ -15,6 +15,14 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
 
     <!--
+      Streaming a personal Backblaze B2 library. This is the one permission that changes what the
+      app can say about itself: PRIVACY.md and the Play listing both claimed the app had no way to
+      reach the network at all, and that is no longer true. Both need updating before release.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!--
       Package visibility filtering (API 30+) would otherwise hide picker activities from
       queryIntentActivities and make "no handler" indistinguishable from "not allowed to look".
     -->

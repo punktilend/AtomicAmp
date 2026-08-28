@@ -26,6 +26,7 @@ import com.atomic.atomicamp.app.library.ui.LibraryViewModel
 import com.atomic.atomicamp.app.library.ui.TagEditorScreen
 import androidx.compose.runtime.collectAsState
 import com.atomic.atomicamp.app.ui.theme.AtomicAmpTheme
+import com.atomic.atomicamp.engine.cloud.B2Settings
 
 private const val ROUTE_LIBRARY = "library"
 private const val ROUTE_NOW_PLAYING = "nowPlaying"
@@ -53,6 +54,16 @@ class MainActivity : ComponentActivity() {
 
         // Installed first so it catches anything that fails during start-up too.
         CrashLog.install(this)
+
+        // Move the build's cloud credentials into settings once. After this they are editable and
+        // the build values are ignored, so a device can be pointed at a different -- ideally
+        // bucket-scoped, read-only -- key without rebuilding.
+        B2Settings(this).seedIfBlank(
+            keyId = BuildConfig.B2_KEY_ID,
+            appKey = BuildConfig.B2_APP_KEY,
+            bucket = BuildConfig.B2_BUCKET,
+            prefix = BuildConfig.B2_PREFIX,
+        )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)

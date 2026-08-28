@@ -7,6 +7,9 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
+import com.atomic.atomicamp.engine.cloud.B2Client
+import com.atomic.atomicamp.engine.cloud.B2Settings
+import com.atomic.atomicamp.engine.cloud.B2Uris
 import com.atomic.atomicamp.app.library.data.Track
 import com.atomic.atomicamp.app.library.data.TrackDao
 import java.io.File
@@ -60,7 +63,9 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         // OPEN_DOCUMENT_TREE resolves to nothing -- so on that device SAF is not a slow path but
         // an absent one. A file:// root walks the filesystem directly instead. Everything past
         // the walk is shared: tags, art and cue sheets are read through Uri either way.
-        if (treeUri.scheme == SCHEME_FILE) {
+        if (B2Uris.isB2(treeUri)) {
+            walkB2(treeUri, batch, seenIds, counter)
+        } else if (treeUri.scheme == SCHEME_FILE) {
             treeUri.path?.let { path ->
                 walkFiles(File(path), relativeDir = "", treeUri, batch, seenIds, counter)
             }
@@ -74,6 +79,74 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         }
         pruneMissing(treeUri.toString(), seenIds)
         counter.emit(force = true)
+    }
+
+    /**
+     * Walks a bucket rather than a directory tree.
+     *
+     * Two things make this different from the local walks rather than a third copy of them.
+     *
+     * The listing is flat: one paginated request returns every object under the prefix, so there
+     * is no recursion and no request per folder. Against a library this size that is the
+     * difference between one scan and thousands of round trips.
+     *
+     * And nothing is opened. Reading tags means fetching each file's header over the network, and
+     * at sixteen thousand files that is a scan measured in hours for information the path usually
+     * already carries. Metadata is inferred from the path and the rows are marked as inferred, so
+     * the UI can say so honestly rather than presenting a guess as a fact.
+     */
+    private suspend fun walkB2(
+        treeUri: Uri,
+        batch: MutableList<Track>,
+        seenIds: MutableSet<String>,
+        counter: ScanCounter,
+    ) {
+        val client = B2Client(B2Settings(context))
+        if (!client.isConfigured) return
+
+        val bucket = B2Uris.bucketOf(treeUri)
+        val prefix = B2Uris.pathOf(treeUri).let { if (it.isEmpty() || it.endsWith("/")) it else "$it/" }
+        val objects = client.listAll(prefix)
+        val now = System.currentTimeMillis()
+
+        for (obj in objects) {
+            val name = obj.path.substringAfterLast('/')
+            if (name.substringAfterLast('.', "").lowercase() !in AUDIO_EXTENSIONS) continue
+
+            val relativeDir = obj.path
+                .removePrefix(prefix)
+                .substringBeforeLast('/', "")
+            val fileUri = B2Uris.forPath(bucket, obj.path)
+            val guess = PathMetadataInference.infer(relativeDir, name)
+
+            val id = Track.idFor(fileUri, null)
+            seenIds += id
+            batch += Track(
+                id = id,
+                uri = fileUri,
+                folderUri = treeUri.toString(),
+                relativeDir = relativeDir,
+                title = guess.title ?: name.substringBeforeLast('.'),
+                artist = guess.artist ?: "Unknown Artist",
+                album = guess.album ?: "Unknown Album",
+                albumArtist = guess.artist ?: "Unknown Artist",
+                genre = "",
+                composer = "",
+                year = 0,
+                trackNumber = guess.trackNumber ?: 0,
+                discNumber = 0,
+                // Unknown until the file is opened. Media3 reports the real duration on play.
+                durationMs = 0L,
+                albumArtPath = null,
+                dateAddedMs = now,
+                metadataInferred = true,
+            )
+            counter.increment()
+            if (batch.size >= BATCH_SIZE) {
+                trackDao.upsert(batch.toList())
+                batch.clear()
+            }
+        }
     }
 
     /** Filesystem twin of [walk], for roots reached without SAF. */

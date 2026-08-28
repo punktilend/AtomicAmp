@@ -15,7 +15,7 @@ AtomicAmp
 ## Short description (80 char max)
 
 ```
-Offline music player for FLAC and hi-res. Folder library, 10-band EQ, no tracking.
+FLAC and hi-res player. Your folders or your own cloud storage. No account, no tracking.
 ```
 
 *(80 exactly — count before editing.)*
@@ -23,10 +23,11 @@ Offline music player for FLAC and hi-res. Folder library, 10-band EQ, no trackin
 ## Full description (4000 char max)
 
 ```
-AtomicAmp is an offline music player for people who keep their own files.
+AtomicAmp is a music player for people who keep their own files.
 
-Point it at a folder and it plays what is in it. No account, no streaming, no library in the
-cloud, and no internet permission at all — it cannot phone home because it has no way to.
+Point it at a folder and it plays what is in it. Point it at your own cloud storage and it streams
+that too. No account with us, no subscription, and no library of ours in between — your
+credentials stay on your device and the music comes straight from your storage.
 
 WHAT IT PLAYS
 • FLAC, including 24-bit and high sample rates
@@ -34,7 +35,9 @@ WHAT IT PLAYS
 • Cue sheets — an album ripped as one long file is split into real tracks, with the multi-file
   sheets that should not be split left alone
 
-YOUR LIBRARY, FROM YOUR FOLDERS
+YOUR LIBRARY, LOCAL OR CLOUD
+• Folders on the device, an SD card or a USB stick
+• Or your own Backblaze B2 storage, streamed on demand
 • Browse by songs, albums, artists, folders or playlists
 • Scans folders you choose, indexed on device so it opens fast
 • Album art from the file or from a cover image beside it
@@ -54,8 +57,9 @@ when the device powers up, which you can turn off. There is a full-screen artwor
 the screen is being glanced at rather than operated.
 
 PRIVACY
-No accounts. No analytics. No advertising. No trackers. No internet permission. Your library
-index never leaves your device and is deleted when you uninstall.
+No accounts. No analytics. No advertising. No trackers. The only network the app touches is your
+own storage provider, with your own credentials. Your library index never leaves your device and
+is deleted when you uninstall.
 
 OPEN SOURCE
 GPL-3.0. The whole thing is readable, and issues and patches are welcome:
@@ -71,13 +75,15 @@ https://github.com/punktilend/AtomicAmp
 
 Straightforward, because it is all true:
 
-- **Does your app collect or share any user data?** → **No**
-- **Is all user data encrypted in transit?** → N/A, nothing is transmitted
-- **Do you provide a way for users to request data deletion?** → N/A, no data is collected.
-  Uninstalling removes the local index.
+- **Does your app collect or share any user data?** → **No.** The app has no server and no
+  analytics. Network access exists only so the app can reach a storage provider the user
+  configures, with the user's own credentials, to stream the user's own files.
+- **Is all user data encrypted in transit?** → Traffic to the storage provider is HTTPS.
+- **Do you provide a way for users to request data deletion?** → N/A, nothing is collected.
+  Uninstalling removes the local index and any stored credentials.
 
-The app declares no `INTERNET` permission, which is easy to verify from the manifest if a reviewer
-asks.
+**This changed when cloud streaming was added.** The listing previously leaned on the app having no
+`INTERNET` permission at all, which is no longer true and must not be claimed.
 
 ## Foreground service declaration
 

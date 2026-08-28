@@ -125,6 +125,9 @@ fun LibraryScreen(
                 FilledTonalButton(onClick = onNavigateToDiagnostics) { Text("Info") }
                 FilledTonalButton(onClick = { libraryViewModel.rescanAll() }) { Text("Rescan") }
                 FilledTonalButton(onClick = onAddFolder) { Text("Add folder") }
+                if (libraryViewModel.cloudConfigured) {
+                    FilledTonalButton(onClick = { libraryViewModel.addCloudLibrary() }) { Text("Add cloud") }
+                }
                 Button(onClick = onNavigateToNowPlaying) { Text("Now Playing") }
             }
 
