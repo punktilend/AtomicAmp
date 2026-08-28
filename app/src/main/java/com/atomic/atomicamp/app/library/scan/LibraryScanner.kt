@@ -101,7 +101,7 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         seenIds: MutableSet<String>,
         counter: ScanCounter,
     ) {
-        val client = B2Client(B2Settings(context))
+        val client = B2Client(B2Settings(context), context)
         if (!client.isConfigured) return
 
         val bucket = B2Uris.bucketOf(treeUri)

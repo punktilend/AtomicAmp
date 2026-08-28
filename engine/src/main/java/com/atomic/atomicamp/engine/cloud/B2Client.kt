@@ -1,5 +1,8 @@
 package com.atomic.atomicamp.engine.cloud
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Base64
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -21,7 +24,10 @@ data class B2Object(val path: String, val sizeBytes: Long)
  * and a head unit that has been sitting in a cold car for a week will come back to an expired one.
  * [authorizeIfNeeded] re-authorises on demand, and callers that get a 401 can force it.
  */
-class B2Client(private val settings: B2Settings) {
+class B2Client(
+    private val settings: B2Settings,
+    private val context: Context? = null,
+) {
 
     private data class Session(
         val apiUrl: String,
@@ -39,6 +45,22 @@ class B2Client(private val settings: B2Settings) {
 
     val isConfigured: Boolean get() = settings.isConfigured
 
+    /**
+     * Whether the device has a usable network right now.
+     *
+     * Checked before any request because the alternative is measurable: offline, a cached track
+     * took 24 seconds to start, all of it spent waiting for connection attempts to time out
+     * before the cache was used. Asking first turns that into no delay at all.
+     */
+    private fun hasNetwork(): Boolean {
+        val ctx = context ?: return true
+        val manager = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return true
+        val network = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
     @Synchronized
     fun authorizeIfNeeded(force: Boolean = false): Boolean {
         val current = session
@@ -46,6 +68,8 @@ class B2Client(private val settings: B2Settings) {
             System.currentTimeMillis() - current.obtainedAtMs < TOKEN_LIFETIME_MS
         if (fresh && !force) return true
         if (!settings.isConfigured) return false
+        // Offline, there is nothing to gain by trying; the cache is the only useful source.
+        if (!hasNetwork()) return false
 
         return try {
             val credentials = "${settings.keyId}:${settings.appKey}"
@@ -180,7 +204,11 @@ class B2Client(private val settings: B2Settings) {
     private companion object {
         const val AUTH_URL = "https://api.backblazeb2.com"
         const val PAGE_SIZE = 1000
-        const val TIMEOUT_MS = 30_000
+        /**
+         * Short on purpose. These calls sit in front of playback starting, so a slow failure is
+         * worse than a fast one -- the cache is right there behind them.
+         */
+        const val TIMEOUT_MS = 8_000
 
         /** B2 API tokens are good for 24 hours; refresh well inside that. */
         const val TOKEN_LIFETIME_MS = 12L * 60 * 60 * 1000

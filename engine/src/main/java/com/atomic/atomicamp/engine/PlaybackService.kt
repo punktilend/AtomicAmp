@@ -16,6 +16,9 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.atomic.atomicamp.engine.cloud.B2Client
 import com.atomic.atomicamp.engine.cloud.B2Settings
 import com.atomic.atomicamp.engine.cloud.B2Uris
+import androidx.media3.datasource.cache.CacheDataSink
+import androidx.media3.datasource.cache.CacheDataSource
+import com.atomic.atomicamp.engine.cloud.MediaCache
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
@@ -126,7 +129,7 @@ class PlaybackService : MediaSessionService() {
         // Cloud tracks are stored as b2:// and resolved to a signed URL at open time, so an
         // expiring token never reaches the database. Local file:// and content:// tracks pass
         // straight through the same factory untouched.
-        val b2Client = B2Client(B2Settings(this))
+        val b2Client = B2Client(B2Settings(this), this)
         val dataSourceFactory = ResolvingDataSource.Factory(
             DefaultDataSource.Factory(this),
         ) { dataSpec ->
@@ -138,8 +141,20 @@ class PlaybackService : MediaSessionService() {
             }
         }
 
+        // Cache on the way out, resolve on the way in. The order matters: the cache sees the
+        // stable b2:// uri and keys on it, while the signed url -- which changes every time the
+        // token is refreshed -- only exists below, inside the resolving source. Keying on the
+        // signed url would cache the same track under a new name on every play and never hit.
+        val cachingFactory = CacheDataSource.Factory()
+            .setCache(MediaCache.get(this))
+            .setUpstreamDataSourceFactory(dataSourceFactory)
+            .setCacheWriteDataSinkFactory(
+                CacheDataSink.Factory().setCache(MediaCache.get(this)),
+            )
+            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
         player = ExoPlayer.Builder(this, EngineRenderersFactory(this, equalizer, leveler, fade))
-            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(cachingFactory))
             .setAudioAttributes(audioAttributes, /* handleAudioFocus= */ true)
             // Pause when the audio route drops (Bluetooth disconnect, headset unplug) instead of
             // continuing out loud on the unit's speakers.
