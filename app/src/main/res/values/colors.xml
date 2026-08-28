@@ -1,4 +1,7 @@
 <resources>
     <!-- Matches CarDarkColors.background in Theme.kt; keep the two in step. -->
     <color name="atomic_background">#FF0D0F11</color>
+    <color name="atomic_surface">#FF15181B</color>
+    <color name="atomic_on_surface">#FFE7E9EB</color>
+    <color name="atomic_muted">#FFAEB6BD</color>
 </resources>

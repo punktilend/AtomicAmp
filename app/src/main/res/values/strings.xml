@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">AtomicAmp</string>
+    <string name="widget_nothing_playing">Nothing playing</string>
+    <string name="widget_previous">Previous track</string>
+    <string name="widget_play_pause">Play or pause</string>
+    <string name="widget_next">Next track</string>
 </resources>

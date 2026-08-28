@@ -85,6 +85,19 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+
+        <receiver
+            android:name=".widget.NowPlayingWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="atomicamp.STATE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_now_playing_info" />
+        </receiver>
+
     </application>
 
 </manifest>

@@ -47,6 +47,19 @@ class PlaybackService : MediaSessionService() {
         const val COMMAND_SET_LEVELER = "atomicamp.SET_LEVELER"
         const val COMMAND_SET_SLEEP_TIMER = "atomicamp.SET_SLEEP_TIMER"
 
+        /**
+         * Announces what is playing, for anything outside this module that needs to draw it.
+         *
+         * A broadcast rather than a direct call because the home screen widget lives in the app
+         * module and the engine cannot see it -- and should not have to. Anything that wants to
+         * render now-playing can listen without the engine knowing it exists.
+         */
+        const val ACTION_STATE_CHANGED = "atomicamp.STATE_CHANGED"
+        const val EXTRA_TITLE = "title"
+        const val EXTRA_ARTIST = "artist"
+        const val EXTRA_ART_PATH = "art_path"
+        const val EXTRA_IS_PLAYING = "is_playing"
+
         const val EXTRA_LEVELER_ENABLED = "leveler_enabled"
 
         /** Wall-clock time the timer fires at, or 0 for off. */
@@ -179,6 +192,7 @@ class PlaybackService : MediaSessionService() {
     private inner class PlaybackPersistenceListener : Player.Listener {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            broadcastState()
             playbackStateStore.save(player)
             mainHandler.removeCallbacks(savePositionRunnable)
         mainHandler.removeCallbacks(sleepRunnable)
@@ -188,6 +202,7 @@ class PlaybackService : MediaSessionService() {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            broadcastState()
             playbackStateStore.save(player)
             // Judge the new track's level on its own, rather than carrying over a correction that
             // was right for the last one.
@@ -215,6 +230,18 @@ class PlaybackService : MediaSessionService() {
         putString(EXTRA_PRESET_NAME, settingsStore.presetName)
         putBoolean(EXTRA_LEVELER_ENABLED, leveler.enabled)
         putLong(EXTRA_SLEEP_END_MS, sleepTimerEndMs)
+    }
+
+    private fun broadcastState() {
+        val metadata = player.currentMediaItem?.mediaMetadata
+        sendBroadcast(
+            Intent(ACTION_STATE_CHANGED)
+                .setPackage(packageName)
+                .putExtra(EXTRA_TITLE, metadata?.title?.toString())
+                .putExtra(EXTRA_ARTIST, metadata?.artist?.toString())
+                .putExtra(EXTRA_ART_PATH, metadata?.artworkUri?.toString())
+                .putExtra(EXTRA_IS_PLAYING, player.isPlaying),
+        )
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession =
