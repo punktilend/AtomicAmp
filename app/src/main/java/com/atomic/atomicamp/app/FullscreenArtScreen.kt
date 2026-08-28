@@ -21,6 +21,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.atomic.atomicamp.app.library.lyrics.Lyrics
+import com.atomic.atomicamp.app.library.lyrics.LyricsLoader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +63,18 @@ fun FullscreenArtScreen(viewModel: PlayerViewModel, onExit: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
     val current = uiState.queue.getOrNull(uiState.currentIndex)
     val artUri = current?.albumArtUri
+
+    // Lyrics are looked up per track, off the main thread, and only for tracks that live on this
+    // device. A sidecar .lrc beside a SAF document is not reachable without another grant, and one
+    // beside a cloud track would be a network fetch -- neither belongs in a screen's first frame.
+    var lyrics by remember { mutableStateOf<Lyrics?>(null) }
+    LaunchedEffect(current?.uri) {
+        lyrics = withContext(Dispatchers.IO) {
+            val uri = current?.uri ?: return@withContext null
+            if (uri.scheme != "file") return@withContext null
+            uri.path?.let { LyricsLoader.forAudioFile(File(it)) }
+        }
+    }
 
     KeepScreenOn()
 
@@ -155,6 +175,30 @@ fun FullscreenArtScreen(viewModel: PlayerViewModel, onExit: () -> Unit) {
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color.White.copy(alpha = 0.7f),
                     )
+                }
+
+                val currentLine = lyrics?.let { it.indexAt(uiState.positionMs) } ?: -1
+                if (lyrics != null && currentLine >= 0) {
+                    Spacer(Modifier.height(24.dp))
+                    // The line being sung, with the next one dimmed beneath it. Enough to follow
+                    // at a glance without turning the screen into a page of text to read.
+                    Text(
+                        text = lyrics!!.lines[currentLine].text,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    lyrics!!.lines.getOrNull(currentLine + 1)?.let { next ->
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = next.text,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Color.White.copy(alpha = 0.5f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(20.dp))

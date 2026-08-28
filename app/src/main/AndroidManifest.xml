@@ -13,6 +13,15 @@
       MainActivity makes on 13+ is auto-denied with no dialog shown, which fails silently.
     -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!--
+      Tag editing rewrites the file in place, which needs write access to shared storage. Only
+      meaningful up to 29, where requestLegacyExternalStorage still applies. From 30 that path is
+      unavailable at any permission level, which is why the editor says so up front rather than
+      failing at save time.
+    -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
 
     <!--
       Streaming a personal Backblaze B2 library. This is the one permission that changes what the

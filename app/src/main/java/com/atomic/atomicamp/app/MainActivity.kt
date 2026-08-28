@@ -49,6 +49,9 @@ class MainActivity : ComponentActivity() {
     private val requestStoragePermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    private val requestWritePermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -70,6 +73,10 @@ class MainActivity : ComponentActivity() {
             requestStoragePermission.launch("android.permission.READ_MEDIA_AUDIO")
         } else {
             requestStoragePermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+            // Write is only useful, and only grantable, up to 29 -- and that is the head unit.
+            if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                requestWritePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            }
         }
 
         setContent {
