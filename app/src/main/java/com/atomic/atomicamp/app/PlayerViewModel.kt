@@ -15,6 +15,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.atomic.atomicamp.engine.PlaybackPreferences
+import com.atomic.atomicamp.app.library.LibraryRepository
 import com.atomic.atomicamp.engine.PlaybackService
 import com.atomic.atomicamp.engine.dsp.EqPresets
 import com.atomic.atomicamp.engine.dsp.GraphicEqualizerAudioProcessor
@@ -82,6 +83,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            ensureArtForCurrent()
             _uiState.value = _uiState.value.copy(
                 currentIndex = controller?.currentMediaItemIndex ?: -1,
                 durationMs = controller?.duration?.coerceAtLeast(0) ?: 0L,
@@ -149,6 +151,9 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             durationMs = c.duration.coerceAtLeast(0),
             positionMs = c.currentPosition.coerceAtLeast(0),
         )
+        // A restored queue carries only what the media session persisted, which for a cloud track
+        // is a title and no artwork. Without this the art stays blank until the track changes.
+        ensureArtForCurrent()
     }
 
     /** Shuffle/repeat live on the player and persist independently of the queue. */
@@ -273,6 +278,7 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
             },
             currentIndex = startIndex,
         )
+        ensureArtForCurrent()
     }
 
     private fun queryDisplayName(uri: Uri): String {
@@ -419,6 +425,30 @@ class PlayerViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     /** [minutes] of 0 or less turns the timer off. */
+    private val libraryRepository by lazy { LibraryRepository(getApplication()) }
+
+    /**
+     * Resolves the current track's art if it is still a cloud pointer.
+     *
+     * Deliberately only the current track. Doing it for a whole queue would fetch art for
+     * thousands of albums nobody is listening to; doing it for the one now playing costs a single
+     * small download and fills in every row of that album at once.
+     */
+    private fun ensureArtForCurrent() {
+        val state = _uiState.value
+        val track = state.queue.getOrNull(state.currentIndex) ?: return
+        if (track.albumArtUri != null) return
+        viewModelScope.launch {
+            val path = libraryRepository.ensureArt(track.id) ?: return@launch
+            val uri = AlbumArtUris.contentUriFor(getApplication(), path)?.toString() ?: return@launch
+            _uiState.value = _uiState.value.copy(
+                queue = _uiState.value.queue.map {
+                    if (it.id == track.id) it.copy(albumArtUri = uri) else it
+                },
+            )
+        }
+    }
+
     fun setSleepTimer(minutes: Int) {
         val c = controller ?: return
         val endMs =

@@ -225,6 +225,24 @@ fun PlayerScreen(
                     }
                 }
             } else {
+                // Portrait had no artwork at all -- it existed only in the wide branch, which is
+                // fine on a dashboard where the art shares the screen with the equaliser and
+                // plainly wrong on a phone, where the cover is the thing you look at. Sized off
+                // width and capped, so a cover cannot push the transport off the bottom.
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    AlbumArt(
+                        artUri = uiState.queue.getOrNull(uiState.currentIndex)?.albumArtUri,
+                        modifier = Modifier
+                            .fillMaxWidth(0.72f)
+                            .aspectRatio(1f)
+                            .heightIn(max = 320.dp)
+                            .clickable(onClick = onShowFullscreenArt),
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
                 TrackTitles(uiState)
                 SeekRow(uiState = uiState, onSeek = viewModel::seekTo)
                 Spacer(Modifier.height(8.dp))

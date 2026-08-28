@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -78,7 +79,7 @@ fun FullscreenArtScreen(viewModel: PlayerViewModel, onExit: () -> Unit) {
 
     KeepScreenOn()
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -110,13 +111,22 @@ fun FullscreenArtScreen(viewModel: PlayerViewModel, onExit: () -> Unit) {
             )
         }
 
-        Row(
+        // Side by side on a dashboard, stacked on a phone. Squaring the art off the full height
+        // in portrait leaves the text column no width at all -- the title, progress and lyrics
+        // simply vanished off the right edge.
+        val portrait = maxHeight > maxWidth
+        val artModifier = if (portrait) {
+            Modifier.fillMaxWidth(0.82f).aspectRatio(1f)
+        } else {
+            Modifier.fillMaxHeight().aspectRatio(1f)
+        }
+
+        ResponsiveFrame(
+            portrait = portrait,
             modifier = Modifier.fillMaxSize().padding(28.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(32.dp),
-        ) {
+        ) { detailsModifier ->
             Box(
-                modifier = Modifier.fillMaxHeight().aspectRatio(1f).clip(RoundedCornerShape(12.dp)),
+                modifier = artModifier.clip(RoundedCornerShape(12.dp)),
             ) {
                 if (artUri != null) {
                     AsyncImage(
@@ -134,7 +144,7 @@ fun FullscreenArtScreen(viewModel: PlayerViewModel, onExit: () -> Unit) {
                 }
             }
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = detailsModifier) {
                 Text(
                     text = current?.title ?: "Nothing playing",
                     style = MaterialTheme.typography.titleLarge,
@@ -226,4 +236,34 @@ private fun KeepScreenOn() {
 private fun formatClock(ms: Long): String {
     val totalSeconds = (ms / 1000).coerceAtLeast(0)
     return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
+}
+
+
+/**
+ * Lays its two children out side by side or stacked.
+ *
+ * Exists so the fullscreen display can be one piece of code rather than two nearly identical
+ * copies -- the only thing that differs between the dashboard and a phone is the axis.
+ */
+@Composable
+private fun ResponsiveFrame(
+    portrait: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable (detailsModifier: Modifier) -> Unit,
+) {
+    // The modifier for the details column is handed out from inside the layout, because weight()
+    // only resolves within a RowScope and the caller is not in one.
+    if (portrait) {
+        Column(
+            modifier = modifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+        ) { content(Modifier.fillMaxWidth()) }
+    } else {
+        Row(
+            modifier = modifier,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
+        ) { content(Modifier.weight(1f)) }
+    }
 }

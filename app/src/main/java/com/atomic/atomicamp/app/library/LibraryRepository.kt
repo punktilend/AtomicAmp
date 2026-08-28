@@ -3,6 +3,7 @@ package com.atomic.atomicamp.app.library
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.atomic.atomicamp.app.library.art.CloudArt
 import com.atomic.atomicamp.app.library.data.AlbumSummary
 import com.atomic.atomicamp.app.library.data.ArtistSummary
 import com.atomic.atomicamp.app.library.data.LibraryDatabase
@@ -147,6 +148,21 @@ class LibraryRepository(context: Context) {
         val parsed = Uri.parse(uri)
         if (parsed.scheme != "file") return null
         return parsed.path?.let(::File)?.takeIf { it.canWrite() }
+    }
+
+    /**
+     * Makes sure [trackId]'s art is a local file, downloading it once if it is still a cloud
+     * pointer. Returns the local path, or null when there is no art.
+     */
+    suspend fun ensureArt(trackId: String): String? = withContext(Dispatchers.IO) {
+        val track = trackDao.trackById(trackId) ?: return@withContext null
+        if (!CloudArt.isRemote(track.albumArtPath)) return@withContext track.albumArtPath
+
+        val local = CloudArt.ensureLocal(appContext, track) ?: return@withContext null
+        // Rewrite every row for this album, not just this track: one download covers all of them.
+        val siblings = trackDao.tracksByAlbumOnce(track.album, track.albumArtist)
+        trackDao.upsert(siblings.map { it.copy(albumArtPath = local) })
+        local
     }
 
     suspend fun addFolder(

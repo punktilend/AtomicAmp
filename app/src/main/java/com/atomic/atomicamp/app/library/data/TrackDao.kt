@@ -12,6 +12,9 @@ interface TrackDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(tracks: List<Track>)
 
+    @Query("SELECT * FROM tracks WHERE album = :album AND albumArtist = :albumArtist")
+    suspend fun tracksByAlbumOnce(album: String, albumArtist: String): List<Track>
+
     @Query("SELECT * FROM tracks WHERE id = :id LIMIT 1")
     suspend fun trackById(id: String): Track?
 

@@ -109,6 +109,19 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
         val objects = client.listAll(prefix)
         val now = System.currentTimeMillis()
 
+        // The listing already contains the jpegs sitting beside the audio, so the cover for every
+        // album is known here for free. Only its location is recorded; downloading thousands of
+        // images before a note is played would be the expensive way to get the same result.
+        val artByFolder = HashMap<String, String>()
+        for (obj in objects) {
+            val name = obj.path.substringAfterLast('/')
+            val base = name.substringBeforeLast('.').lowercase()
+            val extension = name.substringAfterLast('.', "").lowercase()
+            if (base in COVER_BASE_NAMES && extension in IMAGE_EXTENSIONS) {
+                artByFolder.putIfAbsent(obj.path.substringBeforeLast('/', ""), obj.path)
+            }
+        }
+
         for (obj in objects) {
             val name = obj.path.substringAfterLast('/')
             if (name.substringAfterLast('.', "").lowercase() !in AUDIO_EXTENSIONS) continue
@@ -137,7 +150,10 @@ class LibraryScanner(private val context: Context, private val trackDao: TrackDa
                 discNumber = 0,
                 // Unknown until the file is opened. Media3 reports the real duration on play.
                 durationMs = 0L,
-                albumArtPath = null,
+                // A b2:// path rather than a local one: resolved to a cached file the first
+                // time this album is played. See CloudArt.
+                albumArtPath = artByFolder[obj.path.substringBeforeLast('/', "")]
+                    ?.let { B2Uris.forPath(bucket, it) },
                 dateAddedMs = now,
                 metadataInferred = true,
             )

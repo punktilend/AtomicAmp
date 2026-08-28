@@ -101,17 +101,18 @@ skip controls. It runs only while there is playback, and stops when playback sto
 |---|---|
 | `play-icon-512.png` | App icon (512×512) |
 | `play-feature-graphic-1024x500.png` | Feature graphic |
+| `screenshots/1-now-playing.png` | Phone screenshot, 1080×2340 |
+| `screenshots/2-fullscreen-art.png` | Phone screenshot, 1080×2340 |
+| `screenshots/3-library.png` | Phone screenshot, 1080×2340 |
 
-Still needed: **at least two phone screenshots**. The ones taken so far are 1280×720 landscape from
-the head-unit emulator, which are the wrong shape for a phone listing. Capture them from a
-phone-shaped device.
+Screenshots are from a real Galaxy A37, not an emulator, so they show the app at the system font
+scale a real person is using.
 
 ## Before you submit — the honest checklist
 
 - [ ] Privacy policy hosted at a public URL (`PRIVACY.md` is written; GitHub Pages will serve it)
 - [ ] Decide whether `resumeOnBoot` should still default to **on** for strangers — on a phone,
       music starting by itself after a reboot is surprising rather than helpful
-- [ ] Phone screenshots
 - [ ] Gapless playback is still untested; a music player will be judged on it
 - [ ] New personal Play accounts must run a closed test with 12 testers for 14 continuous days
       before applying for production. Confirm the current rule in the console — it is a two-week
